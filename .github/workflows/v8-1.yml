@@ -41,6 +41,9 @@ jobs:
         
         gclient config --unmanaged https://chromium.googlesource.com/v8/v8.git
         gclient sync
+        
+        # 核心修复点：强行触发生命周期钩子，全自动拉取并注入配套的 gn.exe 与 ninja.exe 到 v8/buildtools 目录内
+        gclient runhooks
 
     - name: Build V8 Engine
       shell: cmd
