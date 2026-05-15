@@ -45,7 +45,10 @@ jobs:
     - name: Build V8 Engine
       shell: cmd
       run: |
-        # 修复：由于上面使用的是正斜杠相对路径，这里需要进入正确的 V8 源码目录
+        :: 已修复：将原先导致系统不识别的 # 号注释替换为 cmd 专属的双冒号注释
+        :: 已修复：显式将 depot_tools 塞进当前 cmd 会话的最前方，供 v8gen.py 内部拉起 mb.py 组件使用
+        set PATH=%GITHUB_WORKSPACE%\depot_tools;%PATH%
+        
         cd /d "%GITHUB_WORKSPACE%\depot_tools"
         cd ../v8
         call python3 tools\dev\v8gen.py x64.release -- is_component_build=true v8_use_snapshot=true v8_enable_i18n_support=false
