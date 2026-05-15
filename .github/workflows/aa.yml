@@ -55,9 +55,13 @@ jobs:
         cd ..
         cd v8
         
-        :: 核心对齐修复：动态捕捉当前宿主机的 v8 绝对路径字符串，并将谷歌的核心编译目录绑定追加到 PATH 最前方
-        set V8_ABS_PATH=%cd%
-        set PATH=%GITHUB_WORKSPACE%\depot_tools;%V8_ABS_PATH%\buildtools\win;%PATH%
+        :: 核心对齐修复(硬核防转义)：动态抓取当前绝对路径
+        set V8_RAW_PATH=%cd%
+        :: 关键改动：将路径中极度危险的反斜杠（\）全量替换为清爽安全的正斜杠（/），彻底干掉 \a 响铃字符转义 Bug！
+        set V8_ABS_PATH=%V8_RAW_PATH:\=/%
+        
+        :: 将绝对正斜杠路径注入 PATH 最前端。正斜杠在 Windows 编译器环境下完全合法，完美打破 gn 找不到的魔咒！
+        set PATH=%GITHUB_WORKSPACE%\depot_tools;%V8_ABS_PATH%/buildtools/win;%PATH%
         set PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools
         
         :: 核心修复(WASM)：强制将 is_component_build 改为 false，激活 v8_monolith 与 v8_enable_webassembly，解锁 WASM 引擎
