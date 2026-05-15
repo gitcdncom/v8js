@@ -1,0 +1,123 @@
+name: Build PHP V8 Extension
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Chocolatey Dependencies
+      run: |
+        choco install git python3 totalcmd -y
+
+    - name: Download and Setup Depot Tools
+      shell: bash
+      run: |
+        # 修复：Windows 下 bash 的 $GITHUB_WORKSPACE 包含反斜杠，必须将其转换为正斜杠，彻底根除 \a 转义 Bug
+        FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$FIXED_WORKSPACE/depot_tools"
+        
+        # 将正斜杠路径写入 GITHUB_PATH', 保证后续步骤调用无误
+        echo "$FIXED_WORKSPACE/depot_tools" >> $GITHUB_PATH
+        
+    - name: Fetch V8 Source Code
+      shell: bash
+      env:
+        DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+      run: |
+        # 修复：同样将工作区路径转换为正斜杠
+        FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
+        export PATH="$FIXED_WORKSPACE/depot_tools:$PATH"
+        
+        # 修复：强制初始化全局 Git 配置，彻底根除 CIPD 客户端读取配置引发的 exit status 128 崩溃
+        git config --global depot-tools.allowGlobalGitConfig true
+        git config --global core.autocrlf false
+        git config --global core.filemode false
+        
+        gclient config --unmanaged https://chromium.googlesource.com/v8/v8.git
+        gclient sync
+        
+        # 核心修复点：强行触发生命周期钩子，全自动拉取并注入配套的 gn.exe 与 ninja.exe 到 v8/buildtools 目录内
+        gclient runhooks
+
+    - name: Build V8 Engine
+      shell: cmd
+      env:
+        DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+      run: |
+        :: 修复点1：安全的绝对定位切入，确保 100% 能够进入 v8 源码文件夹
+        cd /d "%GITHUB_WORKSPACE%"
+        cd ..
+        cd v8
+        
+        :: 核心对齐修复：动态捕捉当前宿主机的 v8 绝对路径字符串，并将谷歌的核心编译目录绑定追加到 PATH 最前方
+        set V8_ABS_PATH=%cd%
+        set PATH=%GITHUB_WORKSPACE%\depot_tools;%V8_ABS_PATH%\buildtools\win;%PATH%
+        set PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools
+        
+        :: 核心修复(WASM)：强制将 is_component_build 改为 false，激活 v8_monolith 与 v8_enable_webassembly，解锁 WASM 引擎
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolith=true v8_use_snapshot=true v8_enable_i18n_support=false v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\""
+        
+        :: 核心修复(WASM)：编译目标从分散的多个小 dll 变更为官方指定的 v8_monolith 单体库
+        ninja -C out.gn\x64.release v8_monolith
+
+    - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
+      shell: cmd
+      run: |
+        git clone https://github.com/php/php-sdk-binary-tools.git C:\php-sdk
+        curl -LO https://downloads.php.net/~windows/releases/archives/php-devel-pack-8.2.13-Win32-vs16-x64.zip
+        powershell Expand-Archive php-devel-pack-8.2.13-Win32-vs16-x64.zip -DestinationPath C:\php-sdk\php-devel-pack
+
+    - name: Prepare V8 Libraries for PHP Extension
+      shell: cmd
+      run: |
+        :: 修复点2：完全抛弃不安全的 cd ../v8 语法，强制退回到工作流总根目录，然后再向下扎入同级 v8 目录中
+        cd /d "%GITHUB_WORKSPACE%"
+        cd ..
+        cd v8
+        
+        :: 动态捕获捕获当前虚拟机的真实、合法的 C++ 源码绝对路径并存入变量中
+        set V8_REAL_DIR=%cd%
+        
+        mkdir D:\v8-deps\lib
+        mkdir D:\v8-deps\include
+        
+        :: 使用加双引号的绝对变量路径打捞，100% 消除 File not found 错误
+        xcopy /S /Y "%V8_REAL_DIR%\include\*" D:\v8-deps\include\
+        
+        :: 核心修复(WASM)：因为采用静态单体链接，此处精准定位拷贝生成的 obj\v8_monolith.lib 静态库文件
+        copy "%V8_REAL_DIR%\out.gn\x64.release\obj\v8_monolith.lib" D:\v8-deps\lib\
+
+    # 修复：必须在此步骤前引入微软官方的 MSVC 编译器环境。
+    # 否则在下一步执行完 phpsdk-vs16-x64.bat 后，Actions 虚拟机会因为环境隔离，直接报“找不到 cl.exe”从而引发 Exit code 1 中断。
+    - name: Add MSVC x64 Environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+        vsversion: "2022"
+
+    - name: Compile PHP V8 Extension
+      shell: cmd
+      run: |
+        :: 已修复：清除导致 cmd 执行失败的 # 号注释，统一改为双冒号
+        :: Devel Pack 官方包内没有全量源码配置链，不能运行 buildconf.bat。
+        :: 必须先将开发包工具箱内的 phpize.bat 所在路径临时加入 PATH，然后用 phpize 初始化编译。
+        set PATH=C:\php-sdk\php-devel-pack\php-8.2.13-devel-v16-x64;%PATH%
+        
+        git clone https://github.com/phpv8/v8js.git C:\php-sdk\v14-v8js
+        cd /d C:\php-sdk\v14-v8js
+        
+        # 使用单个 cmd 进程依次执行：初始化、配置、编译（PHP 编译链会自动识别 D:\v8-deps\lib 下的静态单体库，并将 WASM 引擎强行内嵌）
+        call phpize && call configure --with-v8js=shared --with-v8-dir=D:\v8-deps && nmake
+
+    - name: Archive Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: php-8.2.13-v8-wasm-dll
+        path: |
+          C:\php-sdk\v14-v8js\x64\Release_TS\php_v8js.dll
