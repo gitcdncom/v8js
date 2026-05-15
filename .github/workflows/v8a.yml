@@ -47,7 +47,7 @@ jobs:
         set "PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools"
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
-        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_snapshot=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\""
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\""
         ninja -C out.gn\x64.release v8_monolith
 
     - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
@@ -78,13 +78,14 @@ jobs:
       run: |
         set PATH=C:\php-sdk\php-devel-pack\php-8.2.13-devel-v16-x64;%PATH%
         git clone https://github.com/phpv8/v8js.git C:\php-sdk\v14-v8js
-        cd /d C:\phpv8/v8js-sdk\v14-v8js
         cd /d C:\php-sdk\v14-v8js
-        call phpize && call configure --with-v8js=shared --with-v8-dir=D:\v8-deps && nmake
+        call phpize
+        call configure --with-v8js=shared --with-v8-dir=D:\v8-deps
+        nmake
 
     - name: Archive Build Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: php-8.2.13-v8-wasm-dll
         path: |
-          C:\php-sdk\v14-v8js\x64\Release_TS\php_v8js.dll
+          C:\php-sdk\v14-v8js\**\php_v8js.dll
