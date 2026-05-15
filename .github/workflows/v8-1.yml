@@ -50,15 +50,17 @@ jobs:
       env:
         DEPOT_TOOLS_WIN_TOOLCHAIN: 0
       run: |
-        :: 已修复：将 depot_tools 绝对路径拍入当前 cmd 进程的最前端
-        set PATH=%GITHUB_WORKSPACE%\depot_tools;%PATH%
-        :: 已修复：在 cmd 会话内动态声明 PYTHONPATH，避开 env 解析漏洞
-        set PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools
-        
-        :: 修复点1：安全的绝对定位切入，确保 100% 能够进入 v8 源码文件夹
+        :: 安全的绝对定位切入，确保 100% 能够进入 v8 源码文件夹
         cd /d "%GITHUB_WORKSPACE%"
         cd ..
         cd v8
+        
+        :: 核心修复点：动态捕获当前虚拟机上合法的 v8 绝对路径字符串
+        set V8_ABS_PATH=%cd%
+        
+        :: 已修复：不仅要把 depot_tools 拍入前端，还必须把刚刚 runhooks 释放出的 buildtools\win 目录强行塞进 PATH，让系统能够瞬间找到 gn 和 ninja
+        set PATH=%GITHUB_WORKSPACE%\depot_tools;%V8_ABS_PATH%\buildtools\win;%PATH%
+        set PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools
         
         :: 核心修复(WASM)：强制将 is_component_build 改为 false，激活 v8_monolith 与 v8_enable_webassembly，解锁 WASM 引擎
         call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolith=true v8_use_snapshot=true v8_enable_i18n_support=false v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\""
@@ -94,7 +96,7 @@ jobs:
         copy "%V8_REAL_DIR%\out.gn\x64.release\obj\v8_monolith.lib" D:\v8-deps\lib\
 
     # 修复：必须在此步骤前引入微软官方的 MSVC 编译器环境。
-    # 否则在下一步执行完 phpsdk-vs16-x64.bat 后，Actions 虚拟机会因为环境隔离，直接报“找不到 cl.exe”从而引发 Exit code 1 中断。
+    # 否则在下一步执行完 phpsdk-vs16-x64.bat 后，Actions 虚拟机会因为 environment 隔离，直接报“找不到 cl.exe”从而引发 Exit code 1 中断。
     - name: Add MSVC x64 Environment
       uses: ilammy/msvc-dev-cmd@v1
       with:
