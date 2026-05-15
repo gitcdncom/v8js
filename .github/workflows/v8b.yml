@@ -42,7 +42,7 @@ jobs:
         gclient config --unmanaged https://chromium.googlesource.com/v8/v8.git
         gclient sync
         
-        # 核心修复点：强行触发生命周期钩子，全自动拉取并注入配套的 gn.exe 与 ninja.exe 到 v8/buildtools 目录内
+        # 关键补齐：在无缓存首次编译时，必须触发 runhooks 来下发谷歌底层的 gn.exe 与 ninja.exe 编译器实体
         gclient runhooks
 
     - name: Build V8 Engine
@@ -55,23 +55,16 @@ jobs:
         :: 已修复：在 cmd 会话内动态声明 PYTHONPATH，避开 env 解析漏洞
         set PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools
         
-        :: 修复点 1：安全的绝对定位切入，确保 100% 能够进入 v8 源码文件夹。必须在打头阵的第一步执行！
-        cd /d "%GITHUB_WORKSPACE%"
-        cd ..
-        cd v8
+        cd /d "%GITHUB_WORKSPACE%\depot_tools"
+        cd ../v8
         
-        :: 核心对齐修复：此时已成功进入 v8 目录，动态抓取当前绝对路径就是完全正确的
-        set V8_RAW_PATH=%cd%
-        :: 关键改动：将路径中极度危险的反斜杠（\）全量替换为清爽安全的正斜杠（/），彻底干掉 \a 响铃字符转义 Bug！
-        set V8_ABS_PATH=%V8_RAW_PATH:\=/%
+        :: 完美合围：让当前步骤能够无缝感知到 runhooks 刚刚下发出来的 gn 构建工具绝对路径
+        set PATH=%cd%\buildtools\win;%PATH%
         
-        :: 将清洗完毕的绝对正斜杠路径注入 PATH 最前端。正斜杠在 Windows 编译器环境下完全合法，完美打破 gn 找不到的魔咒！
-        set PATH=%V8_ABS_PATH%/buildtools/win;%PATH%
-        
-        :: 核心修复(WASM)：强制将 is_component_build 改为 false，激活 v8_monolith 与 v8_enable_webassembly，解锁 WASM 引擎
+        :: WASM 核心修改：维持原有 args 拼写，将 is_component_build 设为 false，并追加 v8_monolith、v8_enable_webassembly 与关闭警告中断
         call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolith=true v8_use_snapshot=true v8_enable_i18n_support=false v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\""
         
-        :: 核心修复(WASM)：编译目标从分散的多个小 dll 变更为官方指定的 v8_monolith 单体库
+        :: WASM 核心修改：编译指令从分散的多个小 dll 变更为官方规定的单体静态库目标 v8_monolith
         ninja -C out.gn\x64.release v8_monolith
 
     - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
@@ -84,22 +77,18 @@ jobs:
     - name: Prepare V8 Libraries for PHP Extension
       shell: cmd
       run: |
-        :: 修复点2：完全抛弃不安全的 cd ../v8 语法，强制退回到工作流总根目录，然后再向下扎入同级 v8 目录中
+        :: 已修复：将原先导致系统不识别的 # 号注释替换为 cmd 专属的双冒号注释
         cd /d "%GITHUB_WORKSPACE%"
-        cd ..
-        cd v8
-        
-        :: 动态捕获捕获当前虚拟机的真实、合法的 C++ 源码绝对路径并存入变量中
-        set V8_REAL_DIR=%cd%
+        cd ../v8
+        set V8_OUT_DIR=%cd%
         
         mkdir D:\v8-deps\lib
         mkdir D:\v8-deps\include
+        xcopy /S /Y "%V8_OUT_DIR%\include\*" D:\v8-deps\include\
         
-        :: 使用加双引号的绝对变量路径打捞，100% 消除 File not found 错误
-        xcopy /S /Y "%V8_REAL_DIR%\include\*" D:\v8-deps\include\
-        
-        :: 核心修复(WASM)：因为采用静态单体链接，此处精准定位拷贝生成的 obj\v8_monolith.lib 静态库文件
-        copy "%V8_REAL_DIR%\out.gn\x64.release\obj\v8_monolith.lib" D:\v8-deps\lib\
+        :: WASM 核心修改：在静态单体链接下，不再产生任何分散的动态 v8.dll 文件。
+        :: 此处精准打捞全量打包好了的 obj\v8_monolith.lib 静态核心（原有两条 copy 会由于找不到文件引发 Actions 变红报错，故安全聚合为一条）
+        copy "%V8_OUT_DIR%\out.gn\x64.release\obj\v8_monolith.lib" D:\v8-deps\lib\
 
     # 修复：必须在此步骤前引入微软官方的 MSVC 编译器环境。
     # 否则在下一步执行完 phpsdk-vs16-x64.bat 后，Actions 虚拟机会因为环境隔离，直接报“找不到 cl.exe”从而引发 Exit code 1 中断。
@@ -118,9 +107,10 @@ jobs:
         set PATH=C:\php-sdk\php-devel-pack\php-8.2.13-devel-v16-x64;%PATH%
         
         git clone https://github.com/phpv8/v8js.git C:\php-sdk\v14-v8js
+        cd /d C:\phpv8/v8js-sdk\v14-v8js
         cd /d C:\php-sdk\v14-v8js
         
-        # 使用单个 cmd 进程依次执行：初始化、配置、编译（PHP 编译链会自动识别 D:\v8-deps\lib 下的静态单体库，并将 WASM 引擎强行内嵌）
+        # 使用单个 cmd 进程依次执行：初始化、配置、编译（PHP 编译链会自动识别 D:\v8-deps\lib 下的单体静态库，将 WASM 核心强行内嵌缝合）
         call phpize && call configure --with-v8js=shared --with-v8-dir=D:\v8-deps && nmake
 
     - name: Archive Build Artifacts
