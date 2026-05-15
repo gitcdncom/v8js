@@ -58,9 +58,6 @@ jobs:
         cd /d "%GITHUB_WORKSPACE%\depot_tools"
         cd ../v8
         
-        :: 完美合围：让当前步骤能够无缝感知到 runhooks 刚刚下发出来的 gn 构建工具绝对路径
-        set PATH=%cd%\buildtools\win;%PATH%
-        
         :: WASM 核心修改：维持原有 args 拼写，将 is_component_build 设为 false，并追加 v8_monolith、v8_enable_webassembly 与关闭警告中断
         call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolith=true v8_use_snapshot=true v8_enable_i18n_support=false v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\""
         
