@@ -44,14 +44,20 @@ jobs:
 
     - name: Build V8 Engine
       shell: cmd
+      env:
+        DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+        PYTHONPATH: %GITHUB_WORKSPACE%\depot_tools
       run: |
-        :: 已修复：将原先导致系统不识别的 # 号注释替换为 cmd 专属的双冒号注释
-        :: 已修复：显式将 depot_tools 塞进当前 cmd 会话的最前方，供 v8gen.py 内部拉起 mb.py 组件使用
+        :: 已修复：将 depot_tools 绝对路径拍入当前 cmd 进程的最前端
         set PATH=%GITHUB_WORKSPACE%\depot_tools;%PATH%
         
         cd /d "%GITHUB_WORKSPACE%\depot_tools"
         cd ../v8
-        call python3 tools\dev\v8gen.py x64.release -- is_component_build=true v8_use_snapshot=true v8_enable_i18n_support=false
+        
+        :: 已修复：彻底弃用容易闪退的 v8gen.py。改用 Google 原生底层 gn 命令强行建立标准的编译拓扑关系
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=true v8_use_snapshot=true v8_enable_i18n_support=false target_cpu=\"x64\""
+        
+        :: 运行多核编译
         ninja -C out.gn\x64.release v8 v8_libbase v8_libplatform
 
     - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
@@ -64,7 +70,7 @@ jobs:
     - name: Prepare V8 Libraries for PHP Extension
       shell: cmd
       run: |
-        # 修复：精准锁定 V8 编译产物所在的绝对路径进行拷贝
+        :: 已修复：将原先导致系统不识别的 # 号注释替换为 cmd 专属的双冒号注释
         cd /d "%GITHUB_WORKSPACE%"
         cd ../v8
         set V8_OUT_DIR=%cd%
