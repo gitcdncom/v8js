@@ -93,7 +93,8 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
-        vsversion: "2019" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16
+        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16
+        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器
 
     - name: Compile PHP V8 Extension
       shell: cmd
