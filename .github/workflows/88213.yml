@@ -55,7 +55,6 @@ jobs:
         key: v8-build-cache-${{ runner.os }}-v1
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
-        save-always: true
     # ================= 缓存设置结束 =================
 
     - name: Download and Setup Depot Tools
@@ -139,6 +138,10 @@ jobs:
     - name: Clone PHP V8Js Extension Source
       shell: cmd
       run: |
+        if not exist "${{ env.PHP_DEV_PACK_DIR }}" (
+          echo 【致命错误】系统未检测到完整的 PHP 开发包目录！说明上游下载解压步骤已翻车，请检查网络或盘符！
+          exit 1
+        )
         cd /d "${{ env.PHP_DEV_PACK_DIR }}" || exit 1
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
