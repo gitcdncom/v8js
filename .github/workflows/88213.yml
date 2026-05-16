@@ -13,7 +13,8 @@ jobs:
 
     - name: Install Chocolatey Dependencies
       run: |
-        choco install git python3 totalcmd -y
+        choco install git totalcmd -y
+        #choco install git python3 totalcmd -y
 
     # ================= 缓存设置开始 =================
     # 移除具体的 github.sha，使用更宽泛的 key 以支持缓存复用
@@ -27,6 +28,7 @@ jobs:
         key: v8-build-cache-${{ runner.os }}-v1
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
+        save-always: true
     # ================= 缓存设置结束 =================
 
     - name: Download and Setup Depot Tools
@@ -34,14 +36,18 @@ jobs:
       run: |
         FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
         TARGET_DIR="$FIXED_WORKSPACE/depot_tools"
+        
         if [ ! -d "$TARGET_DIR/.git" ]; then
           echo "Directory or .git does not exist. Cloning depot_tools..."
-          rm -rf "$FIXED_WORKSPACE/depot_tools"
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$FIXED_WORKSPACE/depot_tools"
+          rm -rf "$TARGET_DIR"
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$TARGET_DIR"
         else
-            echo "depot_tools already exists, skipping clone."
+          echo "depot_tools already exists, skipping clone."
+          # 【核心修复】如果命中了缓存，显式调用其自带的更新脚本来刷新 Windows 环境下的二进制工具
+          # cd "$TARGET_DIR"
+          # ./update_depot_tools || true
         fi
-        echo "$FIXED_WORKSPACE/depot_tools" >> $GITHUB_PATH
+        echo "$TARGET_DIR" >> $GITHUB_PATH
 
     - name: Fetch V8 Source Code
       shell: bash
@@ -82,7 +88,7 @@ jobs:
         curl -LO https://downloads.php.net/~windows/releases/archives/php-devel-pack-8.2.13-Win32-vs16-x64.zip
         powershell -Command "Expand-Archive php-devel-pack-8.2.13-Win32-vs16-x64.zip -DestinationPath C:\php-sdk\php-dev-temp"
         if exist C:\php-sdk\php-dev-pack rmdir /S /Q C:\php-sdk\php-dev-pack
-        move C:\php-sdk\php-dev-temp\php-8.2.13-devel-v16-x64 C:\php-sdk\php-dev-pack
+        move C:\php-sdk\php-dev-temp\php-8.2.13-devel-pack-vs16-x64 C:\php-sdk\php-dev-pack
 
     - name: Prepare V8 Libraries for PHP Extension
       shell: cmd
@@ -100,8 +106,8 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
-        vsversion: "2022"
-        toolset: "14.29"
+        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
+        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
 
     - name: Clone PHP V8Js Extension Source
       shell: cmd
@@ -139,4 +145,5 @@ jobs:
         name: php-8.2.13-v8-wasm-dll
         path: |
           C:/php-sdk/php-dev-pack/Release*/php_v8js.dll
+          out.gn/x64.release/icudtl.dat
         if-no-files-found: error
