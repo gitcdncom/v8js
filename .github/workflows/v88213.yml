@@ -59,6 +59,13 @@ jobs:
         gclient sync
         gclient runhooks
 
+    - name: Add MSVC x64 Environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
+        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
+
     - name: Build V8 Engine
       shell: cmd
       env:
@@ -76,7 +83,8 @@ jobs:
       run: |
         git clone https://github.com/php/php-sdk-binary-tools.git C:\php-sdk
         curl -LO https://downloads.php.net/~windows/releases/archives/php-devel-pack-8.2.13-Win32-vs16-x64.zip
-        powershell Expand-Archive php-devel-pack-8.2.13-Win32-vs16-x64.zip -DestinationPath C:\php-sdk\php-devel-pack
+        powershell -Command "Expand-Archive php-devel-pack-8.2.13-Win32-vs16-x64.zip -DestinationPath C:\php-sdk\php-dev-temp"
+        move C:\php-sdk\php-dev-temp\php-8.2.13-devel-v16-x64 C:\php-sdk\php-dev-pack
 
     - name: Prepare V8 Libraries for PHP Extension
       shell: cmd
@@ -88,23 +96,13 @@ jobs:
         xcopy /S /Y "%V8_OUT_DIR%\include\*" D:\v8-deps\include\
         copy "%V8_OUT_DIR%\out.gn\x64.release\obj\v8_monolith.lib" D:\v8-deps\lib\
 
-    - name: Add MSVC x64 Environment
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
-        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
-        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
-
     # ================= 编译拆解阶段 1：放置 V8Js 扩展源码 =================
     - name: Clone PHP V8Js Extension Source
       shell: cmd
       run: |
-        REM 1. 强行进入绝对物理路径（如果多嵌套了一层，通过两步切换100%切入）
-        cd /d C:\php-sdk\php-devel-pack
-        cd php-8.2.13-devel-v16-x64 2>nul || cd php-8.2.13-devel-v16-x64\php-8.2.13-devel-v16-x64
+        cd /d C:\php-sdk\php-dev-pack || exit 1
         echo === 当前放置源码的目录是: %CD% ===
         
-        REM 2. 安全清理并克隆
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
         git clone https://github.com/phpv8/v8js.git ext\v8js
@@ -113,16 +111,13 @@ jobs:
     - name: Configure PHP Build Environment
       shell: cmd
       run: |
-        REM 1. 初始化 PHP SDK 环境
         cd /d C:\php-sdk || exit 1
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        
-        REM 2. 稳妥切入编译主目录并执行官方配置
-        cd php-devel-pack
-        cd php-8.2.13-devel-v16-x64 2>nul || cd php-8.2.13-devel-v16-x64\php-8.2.13-devel-v16-x64
+
+        cd /d C:\php-sdk\php-dev-pack || exit 1
         echo === 当前配置构建的目录是: %CD% ===
-        
+
         call buildconf.bat --force || exit 1
         call configure.bat --with-v8js=shared --with-v8-dir=D:\v8-deps --enable-debug=no || exit 1
 
@@ -130,14 +125,11 @@ jobs:
     - name: Run NMAKE Compilation
       shell: cmd
       run: |
-        REM 1. 初始化 PHP SDK 环境
         cd /d C:\php-sdk || exit 1
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
         
-        REM 2. 稳妥切入编译主目录并执行内核编译
-        cd php-devel-pack
-        cd php-8.2.13-devel-v16-x64 2>nul || cd php-8.2.13-devel-v16-x64\php-8.2.13-devel-v16-x64
+        cd /d C:\php-sdk\php-dev-pack || exit 1
         echo === 当前NMAKE执行的目录是: %CD% ===
         
         nmake clean
@@ -148,5 +140,5 @@ jobs:
       with:
         name: php-8.2.13-v8-wasm-dll
         path: |
-          C:/php-sdk/php-devel-pack/php-8.2.13-devel-v16-x64/**/*.dll
+          C:/php-sdk/php-dev-pack/**/*.dll
         if-no-files-found: error
