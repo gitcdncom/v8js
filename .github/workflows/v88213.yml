@@ -100,8 +100,20 @@ jobs:
       run: |
         :: 1. 深度初始化 PHP SDK 的构建树环境
         cd /d C:\php-sdk
-        call phpsdk_setvars.bat
-        
+        :: 如果根目录有就直接执行
+        if exist phpsdk_setvars.bat (
+            call phpsdk_setvars.bat
+        ) else if exist bin\phpsdk_setvars.bat (
+            call bin\phpsdk_setvars.bat
+        ) else (
+            echo === [DEBUG] phpsdk_setvars.bat not found in standard places, scanning directory... ===
+            dir /s /b phpsdk_setvars.bat
+            echo === [DEBUG] Attempting automatic discovery and execution... ===
+            for /f "delims=" %%i in ('where /r C:\php-sdk phpsdk_setvars.bat 2^>nul') do (
+                echo Found at %%i, executing...
+                call "%%i"
+            )
+        )
         :: 2. 在 devel-pack 中克隆并放置 v8js 扩展源码
         cd /d C:\php-sdk\php-devel-pack\php-8.2.13-devel-v16-x64
         if not exist ext mkdir ext
