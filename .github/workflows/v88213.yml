@@ -30,12 +30,18 @@ jobs:
     # ================= 缓存设置结束 =================
 
     - name: Download and Setup Depot Tools
-      if: steps.v8-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
-        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$FIXED_WORKSPACE/depot_tools"
-        echo "$FIXED_WORKSPACE/depot_tools" >> $GITHUB_PATH
+        FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g') # 11
+        TARGET_DIR="$FIXED_WORKSPACE/depot_tools"
+        if [ ! -d "$TARGET_DIR/.git" ]; then
+          echo "Directory or .git does not exist. Cloning depot_tools..."
+          rm -rf "$TARGET_DIR"
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$FIXED_WORKSPACE/depot_tools" # 11
+        else
+            echo "depot_tools already exists, skipping clone."
+        fi
+        echo "$FIXED_WORKSPACE/depot_tools" >> $GITHUB_PATH # 11
 
     - name: Fetch V8 Source Code
       if: steps.v8-cache.outputs.cache-hit != 'true'
