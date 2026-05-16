@@ -28,6 +28,7 @@ env:
   V8_DEPS_DIRINC: "D:\\v8-deps\\include"
   V8_DEPS_DIRLIB_2: "D:\\v8-deps\\lib\\"
   V8_DEPS_DIRINC_2: "D:\\v8-deps\\include\\"
+  V8_PDT: "C:/phpdowtemp"
 # ====================================================================
 
 jobs:
@@ -56,6 +57,13 @@ jobs:
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
     # ================= 缓存设置结束 =================
+
+    - name: Add MSVC x64 Environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+        vsversion: "${{ env.VS_VERSION_ACTION }}" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
+        toolset: "${{ env.MSVC_TOOLSET }}" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
 
     - name: Download and Setup Depot Tools
       shell: bash
@@ -108,13 +116,25 @@ jobs:
         ninja -C out.gn\x64.release v8_monolith
 
     - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
-      shell: cmd
+      shell: powershell
       run: |
-        if not exist "${{ env.PHP_SDK_ROOT }}" git clone "${{ env.SDK_BINARYTOOLS_URL }}" "${{ env.PHP_SDK_ROOT }}"
-        curl -LO "${{ env.PHP_DEVEL_PACK_URL }}"
-        powershell -Command "Expand-Archive \"${{ env.PHP_ZIP_FILE_NAME }}\" -DestinationPath \"${{ env.PHP_DEV_TEMP_DIR }}\""
-        if exist "${{ env.PHP_DEV_PACK_DIR }}" rmdir /S /Q "${{ env.PHP_DEV_PACK_DIR }}"
-        move "${{ env.PHP_DEV_TEMP_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}"
+        if (-not (Test-Path "${{ env.PHP_SDK_ROOT }}")) {
+            git clone "${{ env.SDK_BINARYTOOLS_URL }}" "${{ env.PHP_SDK_ROOT }}"
+        }
+        
+        # 使用自建独立目录避免污染
+        $downloadDir = New-Item -ItemType Directory -Force -Path "${{ env.V8_PDT }}"
+        cd $downloadDir.FullName
+        
+        Invoke-WebRequest -Uri "${{ env.PHP_DEVEL_PACK_URL }}" -OutFile "${{ env.PHP_ZIP_FILE_NAME }}"
+        Expand-Archive -Path "${{ env.PHP_ZIP_FILE_NAME }}" -DestinationPath "${{ env.PHP_DEV_TEMP_DIR }}" -Force
+        
+        if (Test-Path "${{ env.PHP_DEV_PACK_DIR }}") {
+            Remove-Item -Recurse -Force "${{ env.PHP_DEV_PACK_DIR }}"
+        }
+        
+        # 绝对稳妥的重命名移动机制
+        Move-Item -Path "${{ env.PHP_DEV_TEMP_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" -Destination "${{ env.PHP_DEV_PACK_DIR }}" -Force
 
     - name: Prepare V8 Libraries for PHP Extension
       shell: cmd
@@ -123,23 +143,18 @@ jobs:
         if exist "${{ env.V8_DEPS_DIR }}" rmdir /S /Q "${{ env.V8_DEPS_DIR }}"
         mkdir "${{ env.V8_DEPS_DIRLIB }}"
         mkdir "${{ env.V8_DEPS_DIRINC }}"
-        xcopy /S /Y "include\*" "${{ env.V8_DEPS_DIRINC_2 }}"
+        xcopy /S /E /Y "include\*" "${{ env.V8_DEPS_DIRINC_2 }}"
         copy "out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIRLIB_2 }}"
+        copy "out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIRLIB_2 }}\v8.lib"
         if exist out.gn\x64.release\icudtl.dat copy out.gn\x64.release\icudtl.dat "${{ env.V8_DEPS_DIRLIB_2 }}"
         if exist out.gn\x64.release\snapshot_blob.bin copy out.gn\x64.release\snapshot_blob.bin "${{ env.V8_DEPS_DIRLIB_2 }}"
-
-    - name: Add MSVC x64 Environment
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
-        vsversion: "${{ env.VS_VERSION_ACTION }}" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
-        toolset: "${{ env.MSVC_TOOLSET }}" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
 
     - name: Clone PHP V8Js Extension Source
       shell: cmd
       run: |
         if not exist "${{ env.PHP_DEV_PACK_DIR }}" (
           echo 【致命错误】系统未检测到完整的 PHP 开发包目录！说明上游下载解压步骤已翻车，请检查网络或盘符！
+          exit 1
         )
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         if not exist ext mkdir ext
@@ -150,6 +165,7 @@ jobs:
     - name: Configure PHP Build Environment
       shell: cmd
       run: |
+        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         cd /d "${{ env.PHP_SDK_ROOT }}"
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
@@ -161,6 +177,7 @@ jobs:
     - name: Run NMAKE Compilation
       shell: cmd
       run: |
+        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         cd /d "${{ env.PHP_SDK_ROOT }}"
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
@@ -174,5 +191,5 @@ jobs:
         name: php-8.2.13-v8-wasm-dll
         path: |
           ${{ env.PHP_DEV_PACK_DIR }}/Release*/php_v8js.dll
-          out.gn/x64.release/icudtl.dat
+          ${{ github.workspace }}/v8-build/v8/out.gn/x64.release/icudtl.dat
         if-no-files-found: error
