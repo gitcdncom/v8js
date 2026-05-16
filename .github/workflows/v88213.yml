@@ -15,14 +15,29 @@ jobs:
       run: |
         choco install git python3 totalcmd -y
 
+    # ================= 缓存设置开始 =================
+    - name: Cache Depot Tools and V8 Source
+      id: v8-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ github.workspace }}/depot_tools
+          ${{ github.workspace }}/v8-build
+        key: v8-build-cache-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          v8-build-cache-${{ runner.os }}-
+    # ================= 缓存设置结束 =================
+
     - name: Download and Setup Depot Tools
+      if: steps.v8-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
         git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$FIXED_WORKSPACE/depot_tools"
         echo "$FIXED_WORKSPACE/depot_tools" >> $GITHUB_PATH
-        
+
     - name: Fetch V8 Source Code
+      if: steps.v8-cache.outputs.cache-hit != 'true'
       shell: bash
       env:
         DEPOT_TOOLS_WIN_TOOLCHAIN: 0
