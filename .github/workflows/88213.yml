@@ -16,6 +16,7 @@ jobs:
         choco install git python3 totalcmd -y
 
     # ================= 缓存设置开始 =================
+    # 移除具体的 github.sha，使用更宽泛的 key 以支持缓存复用
     - name: Cache Depot Tools and V8 Source
       id: v8-cache
       uses: actions/cache@v4
@@ -23,7 +24,7 @@ jobs:
         path: |
           ${{ github.workspace }}/depot_tools
           ${{ github.workspace }}/v8-build
-        key: v8-build-cache-${{ runner.os }}-${{ github.sha }}
+        key: v8-build-cache-${{ runner.os }}-v1
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
     # ================= 缓存设置结束 =================
@@ -31,19 +32,18 @@ jobs:
     - name: Download and Setup Depot Tools
       shell: bash
       run: |
-        FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g') # 11
+        FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
         TARGET_DIR="$FIXED_WORKSPACE/depot_tools"
         if [ ! -d "$TARGET_DIR/.git" ]; then
           echo "Directory or .git does not exist. Cloning depot_tools..."
           rm -rf "$FIXED_WORKSPACE/depot_tools"
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$FIXED_WORKSPACE/depot_tools" # 11
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$FIXED_WORKSPACE/depot_tools"
         else
             echo "depot_tools already exists, skipping clone."
         fi
-        echo "$FIXED_WORKSPACE/depot_tools" >> $GITHUB_PATH # 11
+        echo "$FIXED_WORKSPACE/depot_tools" >> $GITHUB_PATH
 
     - name: Fetch V8 Source Code
-      if: steps.v8-cache.outputs.cache-hit != 'true'
       shell: bash
       env:
         DEPOT_TOOLS_WIN_TOOLCHAIN: 0
@@ -53,9 +53,13 @@ jobs:
         git config --global depot-tools.allowGlobalGitConfig true
         git config --global core.autocrlf false
         git config --global core.filemode false
+        
+        # 即使命中缓存，如果丢失了必要配置也需要重新初始化，而非直接跳过
         mkdir -p "$FIXED_WORKSPACE/v8-build"
         cd "$FIXED_WORKSPACE/v8-build"
-        gclient config --unmanaged https://chromium.googlesource.com/v8/v8.git
+        if [ ! -f ".gclient" ]; then
+          gclient config --unmanaged https://chromium.googlesource.com/v8/v8.git
+        fi
         gclient sync
         gclient runhooks
 
@@ -74,16 +78,17 @@ jobs:
     - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
       shell: cmd
       run: |
-        git clone https://github.com/php/php-sdk-binary-tools.git C:\php-sdk
+        if not exist C:\php-sdk git clone https://github.com/php/php-sdk-binary-tools.git C:\php-sdk
         curl -LO https://downloads.php.net/~windows/releases/archives/php-devel-pack-8.2.13-Win32-vs16-x64.zip
         powershell -Command "Expand-Archive php-devel-pack-8.2.13-Win32-vs16-x64.zip -DestinationPath C:\php-sdk\php-dev-temp"
+        if exist C:\php-sdk\php-dev-pack rmdir /S /Q C:\php-sdk\php-dev-pack
         move C:\php-sdk\php-dev-temp\php-8.2.13-devel-v16-x64 C:\php-sdk\php-dev-pack
 
     - name: Prepare V8 Libraries for PHP Extension
       shell: cmd
       run: |
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
-        set V8_OUT_DIR=%cd%
+        if exist D:\v8-deps rmdir /S /Q D:\v8-deps
         mkdir D:\v8-deps\lib
         mkdir D:\v8-deps\include
         xcopy /S /Y "include\*" D:\v8-deps\include\
@@ -95,52 +100,43 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
-        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
-        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
+        vsversion: "2022"
+        toolset: "14.29"
 
-    # ================= 编译拆解阶段 1：放置 V8Js 扩展源码 =================
     - name: Clone PHP V8Js Extension Source
       shell: cmd
       run: |
         cd /d C:\php-sdk\php-dev-pack || exit 1
-        echo === 当前放置源码的目录是: %CD% ===
-        
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
         git clone https://github.com/phpv8/v8js.git ext\v8js
 
-    # ================= 编译拆解阶段 2：执行环境初始化与配置 =================
+    # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
     - name: Configure PHP Build Environment
       shell: cmd
       run: |
         cd /d C:\php-sdk || exit 1
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-
         cd /d C:\php-sdk\php-dev-pack || exit 1
-        echo === 当前配置构建的目录是: %CD% ===
-
         call buildconf.bat --force || exit 1
         call configure.bat --with-v8js=shared --with-v8-dir=D:\v8-deps --enable-debug=no || exit 1
 
-    # ================= 编译拆解阶段 3：执行内核全量 NMAKE 编译 =================
+    # 将设置变量与 nmake 清理、编译合并在单步骤内执行
     - name: Run NMAKE Compilation
       shell: cmd
       run: |
         cd /d C:\php-sdk || exit 1
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        
         cd /d C:\php-sdk\php-dev-pack || exit 1
-        echo === 当前NMAKE执行的目录是: %CD% ===
-        
         nmake clean
-        nmake
+        nmake || exit 1
         
     - name: Archive Build Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: php-8.2.13-v8-wasm-dll
         path: |
-          C:/php-sdk/php-dev-pack/**/*.dll
+          C:/php-sdk/php-dev-pack/Release*/php_v8js.dll
         if-no-files-found: error
