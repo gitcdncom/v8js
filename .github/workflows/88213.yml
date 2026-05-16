@@ -39,14 +39,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Chocolatey Dependencies
+    - name: "安装依赖"
       run: |
-        choco install git totalcmd -y
+        #choco install git totalcmd -y
+        choco install re2c winflexbison3 --yes --no-progress
         #choco install git python3 totalcmd -y
 
     # ================= 缓存设置开始 =================
     # 移除具体的 github.sha，使用更宽泛的 key 以支持缓存复用
-    - name: Cache Depot Tools and V8 Source
+    - name: "缓存"
       id: v8-cache
       uses: actions/cache@v4
       with:
@@ -90,6 +91,7 @@ jobs:
       shell: bash
       env:
         DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+        WINDOWSSDKDIR: ${{ env.WindowsSdkDir }}
       run: |
         # 1. 纠正并声明跨平台正斜杠路径
         FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
@@ -108,7 +110,7 @@ jobs:
         echo "写入当前虚拟机专属的构建配置文件..."
         echo "solutions = [ { 'name': 'v8', 'url': '${{ env.V8_SRC_URL }}', 'deps_file': 'DEPS', 'managed': False, 'custom_deps': {}, 'custom_vars': {} } ]" > .gclient
         
-        # 4. 执行依赖链校验（完美兼容缓存复用，绝不污染版本）
+        # 4. 执行依赖链校验（完美兼容缓存复用，绝不污染版本 --freeze --nohooks）
         echo "启动 V8 依赖链增量自检..."
         gclient sync --no-history
         
@@ -125,8 +127,9 @@ jobs:
         set "PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools"
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
-        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\" is_custom_libcxx=false" || exit 1
-        ninja -C out.gn\x64.release v8_monolith
+        # is_custom_libcxx=false use_custom_libcxx=false visual_studio_version="2019"
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" use_custom_libcxx=false" || exit 1
+        ninja -C out.gn\x64.release v8_monolith || exit 1
 
     - name: "安装 PHP-SDK 并拉取 PHP 开发包"
       shell: powershell
