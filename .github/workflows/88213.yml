@@ -80,6 +80,9 @@ jobs:
           # 【核心修复】如果命中了缓存，显式调用其自带的更新脚本来刷新 Windows 环境下的二进制工具
           # cd "$TARGET_DIR"
           # ./update_depot_tools || true
+          # 不拉取最新工具箱源码，仅用 3 秒钟在 Windows 本地原地重新纠正、激活 Python 坏死的路径环境
+          cd "$TARGET_DIR"
+          cmd.exe /c "gclient" || true
         fi
         echo "$TARGET_DIR" >> $GITHUB_PATH
 
@@ -88,19 +91,29 @@ jobs:
       env:
         DEPOT_TOOLS_WIN_TOOLCHAIN: 0
       run: |
+        # 1. 纠正并声明跨平台正斜杠路径
         FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
         export PATH="$FIXED_WORKSPACE/depot_tools:$PATH"
+        
+        # 2. 注入谷歌专用的 Git 防冲突全局配置
         git config --global depot-tools.allowGlobalGitConfig true
         git config --global core.autocrlf false
         git config --global core.filemode false
         
-        # 即使命中缓存，如果丢失了必要配置也需要重新初始化，而非直接跳过
+        # 3. 创建顶层大包装盒 v8-build 并切入
         mkdir -p "$FIXED_WORKSPACE/v8-build"
         cd "$FIXED_WORKSPACE/v8-build"
-        if [ ! -f ".gclient" ]; then
-          gclient config --unmanaged "${{ env.V8_SRC_URL }}"
-        fi
-        gclient sync
+        
+        # 【核心自愈修复：彻底解决跨虚拟机绝对路径污染】
+        echo "写入当前虚拟机专属的构建配置文件..."
+        echo "solutions = [ { 'name': 'v8', 'url': '${{ env.V8_SRC_URL }}', 'deps_file': 'DEPS', 'managed': False, 'custom_deps': {}, 'custom_vars': {} } ]" > .gclient
+        
+        # 4. 执行依赖链校验（完美兼容缓存复用，绝不污染版本）
+        echo "启动 V8 依赖链增量自检..."
+        gclient sync --no-history --freeze
+        
+        # 5. 执行钩子程序（刷新当前虚拟机的本地编译工具图纸）
+        echo "激活 V8 本地构建钩子..."
         gclient runhooks
 
     - name: "编译 V8"
@@ -112,7 +125,7 @@ jobs:
         set "PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools"
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
-        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\"" || exit 1
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\" is_custom_libcxx=false" || exit 1
         ninja -C out.gn\x64.release v8_monolith
 
     - name: "安装 PHP-SDK 并拉取 PHP 开发包"
@@ -189,6 +202,7 @@ jobs:
       shell: cmd
       run: |
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        powershell -Command "(Get-Content '${{ env.PHP_DEV_PACK_DIR }}\ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content '${{ env.PHP_DEV_PACK_DIR }}\ext\v8js\config.w32'"
         cd /d "${{ env.PHP_SDK_ROOT }}"
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
@@ -207,7 +221,7 @@ jobs:
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         nmake clean
         nmake
-        
+
     - name: "归档"
       uses: actions/upload-artifact@v4
       with:
