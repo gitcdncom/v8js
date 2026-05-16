@@ -12,7 +12,7 @@ env:
 
   # 2. 核心源码与开发包远程地址（此后只需维护并修改这 4 行 URL 即可）
   PHP_ZIP_FILE_NAME: "php-devel-pack-8.2.13-Win32-vs16-x64.zip"            # 下载到本地保存的压缩包全名
-  PHP_DEVEL_PACK_ORIGINAL_DIR: "php-8.2.13-devel-pack-vs16-x64"            # 解压出来的原始根目录名称
+  PHP_DEVEL_PACK_ORIGINAL_DIR: "php-8.2.13-devel-vs16-x64"            # 解压出来的原始根目录名称
   PHP_DEVEL_PACK_URL: "https://downloads.php.net/~windows/releases/archives/php-devel-pack-8.2.13-Win32-vs16-x64.zip"
   DEPOT_TOOLS_URL: "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
   SDK_BINARYTOOLS_URL: "https://github.com/php/php-sdk-binary-tools.git"
