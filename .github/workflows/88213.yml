@@ -42,7 +42,7 @@ jobs:
     - name: "安装依赖"
       run: |
         #choco install git totalcmd -y
-        choco install re2c winflexbison3 --yes --no-progress
+        #choco install re2c winflexbison3 --yes --no-progress
         #choco install git python3 totalcmd -y
 
     # ================= 缓存设置开始 =================
@@ -127,7 +127,7 @@ jobs:
         set "PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools"
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
-        # is_custom_libcxx=false use_custom_libcxx=false visual_studio_version="2019"
+        :: is_custom_libcxx=false use_custom_libcxx=false visual_studio_version="2019"
         call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" use_custom_libcxx=false" || exit 1
         ninja -C out.gn\x64.release v8_monolith || exit 1
 
