@@ -59,13 +59,6 @@ jobs:
         gclient sync
         gclient runhooks
 
-    - name: Add MSVC x64 Environment
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
-        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
-        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
-
     - name: Build V8 Engine
       shell: cmd
       env:
@@ -75,7 +68,7 @@ jobs:
         set "PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools"
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
-        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\""
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=true v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu='x64' visual_studio_version='2019'" || exit 1
         ninja -C out.gn\x64.release v8_monolith
 
     - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
@@ -93,8 +86,17 @@ jobs:
         set V8_OUT_DIR=%cd%
         mkdir D:\v8-deps\lib
         mkdir D:\v8-deps\include
-        xcopy /S /Y "%V8_OUT_DIR%\include\*" D:\v8-deps\include\
-        copy "%V8_OUT_DIR%\out.gn\x64.release\obj\v8_monolith.lib" D:\v8-deps\lib\
+        xcopy /S /Y "include\*" D:\v8-deps\include\
+        copy "out.gn\x64.release\obj\v8_monolith.lib" D:\v8-deps\lib\
+        if exist out.gn\x64.release\icudtl.dat copy out.gn\x64.release\icudtl.dat D:\v8-deps\lib\
+        if exist out.gn\x64.release\snapshot_blob.bin copy out.gn\x64.release\snapshot_blob.bin D:\v8-deps\lib\
+
+    - name: Add MSVC x64 Environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
+        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
 
     # ================= 编译拆解阶段 1：放置 V8Js 扩展源码 =================
     - name: Clone PHP V8Js Extension Source
