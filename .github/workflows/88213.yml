@@ -3,6 +3,33 @@ name: Build PHP V8 Extension
 on:
   workflow_dispatch:
 
+# ==================== 全局公共配置项（完美一键修改） ====================
+env:
+  # 1. 编译器与 Visual Studio 工具链配置
+  VS_VERSION_GN: "2019"         # 传递给 V8 GN 编译参数的 visual_studio_version
+  VS_VERSION_ACTION: "2022"     # ilammy/msvc-dev-cmd 镜像版本
+  MSVC_TOOLSET: "14.29"         # 强制加载的 MSVC 编译器工具集版本 (VS2019 最终版)
+
+  # 2. 核心源码与开发包远程地址（此后只需维护并修改这 4 行 URL 即可）
+  PHP_ZIP_FILE_NAME: "php-devel-pack-8.2.13-Win32-vs16-x64.zip"            # 下载到本地保存的压缩包全名
+  PHP_DEVEL_PACK_ORIGINAL_DIR: "php-8.2.13-devel-pack-vs16-x64"            # 解压出来的原始根目录名称
+  PHP_DEVEL_PACK_URL: "https://downloads.php.net/~windows/releases/archives/php-devel-pack-8.2.13-Win32-vs16-x64.zip"
+  DEPOT_TOOLS_URL: "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
+  SDK_BINARYTOOLS_URL: "https://github.com/php/php-sdk-binary-tools.git"
+  V8_SRC_URL: "https://chromium.googlesource.com/v8/v8.git"
+  V8JS_EXT_URL: "https://github.com/phpv8/v8js.git"
+
+  # 3. 全局本地公共目录定义
+  PHP_SDK_ROOT: "C:\\php-sdk"
+  PHP_DEV_PACK_DIR: "C:\\php-sdk\\php-dev-pack"
+  PHP_DEV_TEMP_DIR: "C:\\php-sdk\\php-dev-temp"
+  V8_DEPS_DIR: "D:\\v8-deps"
+  V8_DEPS_DIRLIB: "D:\\v8-deps\\lib"
+  V8_DEPS_DIRINC: "D:\\v8-deps\\include"
+  V8_DEPS_DIRLIB_2: "D:\\v8-deps\\lib\\"
+  V8_DEPS_DIRINC_2: "D:\\v8-deps\\include\\"
+# ====================================================================
+
 jobs:
   build:
     runs-on: windows-2022
@@ -40,7 +67,7 @@ jobs:
         if [ ! -d "$TARGET_DIR/.git" ]; then
           echo "Directory or .git does not exist. Cloning depot_tools..."
           rm -rf "$TARGET_DIR"
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$TARGET_DIR"
+          git clone "${{ env.DEPOT_TOOLS_URL }}" "$TARGET_DIR"
         else
           echo "depot_tools already exists, skipping clone."
           # 【核心修复】如果命中了缓存，显式调用其自带的更新脚本来刷新 Windows 环境下的二进制工具
@@ -64,7 +91,7 @@ jobs:
         mkdir -p "$FIXED_WORKSPACE/v8-build"
         cd "$FIXED_WORKSPACE/v8-build"
         if [ ! -f ".gclient" ]; then
-          gclient config --unmanaged https://chromium.googlesource.com/v8/v8.git
+          gclient config --unmanaged "${{ env.V8_SRC_URL }}"
         fi
         gclient sync
         gclient runhooks
@@ -78,64 +105,64 @@ jobs:
         set "PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools"
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
-        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"2019\"" || exit 1
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\"" || exit 1
         ninja -C out.gn\x64.release v8_monolith
 
     - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
       shell: cmd
       run: |
-        if not exist C:\php-sdk git clone https://github.com/php/php-sdk-binary-tools.git C:\php-sdk
-        curl -LO https://downloads.php.net/~windows/releases/archives/php-devel-pack-8.2.13-Win32-vs16-x64.zip
-        powershell -Command "Expand-Archive php-devel-pack-8.2.13-Win32-vs16-x64.zip -DestinationPath C:\php-sdk\php-dev-temp"
-        if exist C:\php-sdk\php-dev-pack rmdir /S /Q C:\php-sdk\php-dev-pack
-        move C:\php-sdk\php-dev-temp\php-8.2.13-devel-pack-vs16-x64 C:\php-sdk\php-dev-pack
+        if not exist "${{ env.PHP_SDK_ROOT }}" git clone "${{ env.SDK_BINARYTOOLS_URL }}" "${{ env.PHP_SDK_ROOT }}"
+        curl -LO "${{ env.PHP_DEVEL_PACK_URL }}"
+        powershell -Command "Expand-Archive \"${{ env.PHP_ZIP_FILE_NAME }}\" -DestinationPath \"${{ env.PHP_DEV_TEMP_DIR }}\""
+        if exist "${{ env.PHP_DEV_PACK_DIR }}" rmdir /S /Q "${{ env.PHP_DEV_PACK_DIR }}"
+        move "${{ env.PHP_DEV_TEMP_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}"
 
     - name: Prepare V8 Libraries for PHP Extension
       shell: cmd
       run: |
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
-        if exist D:\v8-deps rmdir /S /Q D:\v8-deps
-        mkdir D:\v8-deps\lib
-        mkdir D:\v8-deps\include
-        xcopy /S /Y "include\*" D:\v8-deps\include\
-        copy "out.gn\x64.release\obj\v8_monolith.lib" D:\v8-deps\lib\
-        if exist out.gn\x64.release\icudtl.dat copy out.gn\x64.release\icudtl.dat D:\v8-deps\lib\
-        if exist out.gn\x64.release\snapshot_blob.bin copy out.gn\x64.release\snapshot_blob.bin D:\v8-deps\lib\
+        if exist "${{ env.V8_DEPS_DIR }}" rmdir /S /Q "${{ env.V8_DEPS_DIR }}"
+        mkdir "${{ env.V8_DEPS_DIRLIB }}"
+        mkdir "${{ env.V8_DEPS_DIRINC }}"
+        xcopy /S /Y "include\*" "${{ env.V8_DEPS_DIRINC_2 }}"
+        copy "out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIRLIB_2 }}"
+        if exist out.gn\x64.release\icudtl.dat copy out.gn\x64.release\icudtl.dat "${{ env.V8_DEPS_DIRLIB_2 }}"
+        if exist out.gn\x64.release\snapshot_blob.bin copy out.gn\x64.release\snapshot_blob.bin "${{ env.V8_DEPS_DIRLIB_2 }}"
 
     - name: Add MSVC x64 Environment
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
-        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
-        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
+        vsversion: "${{ env.VS_VERSION_ACTION }}" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
+        toolset: "${{ env.MSVC_TOOLSET }}" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
 
     - name: Clone PHP V8Js Extension Source
       shell: cmd
       run: |
-        cd /d C:\php-sdk\php-dev-pack || exit 1
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}" || exit 1
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
-        git clone https://github.com/phpv8/v8js.git ext\v8js
+        git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
 
     # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
     - name: Configure PHP Build Environment
       shell: cmd
       run: |
-        cd /d C:\php-sdk || exit 1
+        cd /d "${{ env.PHP_SDK_ROOT }}" || exit 1
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        cd /d C:\php-sdk\php-dev-pack || exit 1
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}" || exit 1
         call buildconf.bat --force || exit 1
-        call configure.bat --with-v8js=shared --with-v8-dir=D:\v8-deps --enable-debug=no || exit 1
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no || exit 1
 
     # 将设置变量与 nmake 清理、编译合并在单步骤内执行
     - name: Run NMAKE Compilation
       shell: cmd
       run: |
-        cd /d C:\php-sdk || exit 1
+        cd /d "${{ env.PHP_SDK_ROOT }}" || exit 1
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        cd /d C:\php-sdk\php-dev-pack || exit 1
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}" || exit 1
         nmake clean
         nmake || exit 1
         
@@ -144,6 +171,6 @@ jobs:
       with:
         name: php-8.2.13-v8-wasm-dll
         path: |
-          C:/php-sdk/php-dev-pack/Release*/php_v8js.dll
+          ${{ env.PHP_DEV_PACK_DIR }}/Release*/php_v8js.dll
           out.gn/x64.release/icudtl.dat
         if-no-files-found: error
