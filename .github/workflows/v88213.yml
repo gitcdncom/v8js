@@ -95,27 +95,37 @@ jobs:
         vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
         toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
 
-    - name: Compile PHP V8 Extension
+    # ================= 编译拆解阶段 1：放置 V8Js 扩展源码 =================
+    - name: Clone PHP V8Js Extension Source
       shell: cmd
       run: |
-        REM 1. 深度初始化 PHP SDK 的构建树环境（单行安全调用，无括号，无 if 陷阱）
-        cd /d C:\php-sdk
-        if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
-        if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        
-        REM 2. 切换到 devel-pack 目录，安全清理并放置 v8js 源码
-        cd /d C:\php-sdk\php-devel-pack\php-8.2.13-devel-v16-x64
+        cd /d C:\php-sdk\php-devel-pack\php-8.2.13-devel*
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
         git clone https://github.com/phpv8/v8js.git ext\v8js
-        
-        REM 3. 执行标准的 PHP Windows 扩展编译流水线
+
+    # ================= 编译拆解阶段 2：执行环境初始化与配置 =================
+    - name: Configure PHP Build Environment
+      shell: cmd
+      run: |
+        cd /d C:\php-sdk
+        if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
+        if exist phpsdk_setvars.bat call phpsdk_setvars.bat
+        cd /d C:\php-sdk\php-devel-pack\php-8.2.13-devel*
         call buildconf.bat --force
         call configure.bat --with-v8js=shared --with-v8-dir=D:\v8-deps --enable-debug=no
-        
-        REM 4. 强制执行清理并指定目标全量编译
+
+    # ================= 编译拆解阶段 3：执行内核全量 NMAKE 编译 =================
+    - name: Run NMAKE Compilation
+      shell: cmd
+      run: |
+        cd /d C:\php-sdk
+        if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
+        if exist phpsdk_setvars.bat call phpsdk_setvars.bat
+        cd /d C:\php-sdk\php-devel-pack\php-8.2.13-devel*
         nmake clean
         nmake
+
         
     - name: Archive Build Artifacts
       uses: actions/upload-artifact@v4
