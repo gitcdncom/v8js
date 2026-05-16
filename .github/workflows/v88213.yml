@@ -107,7 +107,7 @@ jobs:
         cd /d C:\php-sdk\php-devel-pack\php-8.2.13-devel-v16-x64
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
-        git clone https://github.com ext\v8js
+        git clone https://github.com/phpv8/v8js.git ext\v8js
         
         REM 3. 执行标准的 PHP Windows 扩展编译流水线
         call buildconf.bat --force
