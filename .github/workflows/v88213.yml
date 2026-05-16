@@ -111,3 +111,4 @@ jobs:
         name: php-8.2.13-v8-wasm-dll
         path: |
           C:/php-sdk/php-devel-pack/php-8.2.13-devel-v16-x64/**/*.dll
+        if-no-files-found: error
