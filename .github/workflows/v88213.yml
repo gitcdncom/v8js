@@ -26,7 +26,6 @@ jobs:
         key: v8-build-cache-${{ runner.os }}-${{ github.sha }}
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
-        save-always: true
     # ================= 缓存设置结束 =================
 
     - name: Download and Setup Depot Tools
@@ -93,8 +92,8 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
-        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16
-        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器
+        vsversion: "2022" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
+        toolset: "14.29" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
 
     - name: Compile PHP V8 Extension
       shell: cmd
@@ -111,4 +110,4 @@ jobs:
       with:
         name: php-8.2.13-v8-wasm-dll
         path: |
-          C:\php-sdk\php-devel-pack\php-8.2.13-devel-v16-x64\**\php_v8js.dll
+          C:/php-sdk/php-devel-pack/php-8.2.13-devel-v16-x64/**/*.dll
