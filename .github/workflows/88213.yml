@@ -110,7 +110,7 @@ jobs:
         
         # 4. 执行依赖链校验（完美兼容缓存复用，绝不污染版本）
         echo "启动 V8 依赖链增量自检..."
-        gclient sync --no-history --freeze
+        gclient sync --no-history
         
         # 5. 执行钩子程序（刷新当前虚拟机的本地编译工具图纸）
         echo "激活 V8 本地构建钩子..."
