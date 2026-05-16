@@ -99,38 +99,30 @@ jobs:
     - name: Clone PHP V8Js Extension Source
       shell: cmd
       run: |
-        REM 1. 自动寻找开发包目录
-        for /f "delims=" %%i in ('dir /b /s /ad C:\php-sdk\php-devel-pack\php-8.2.13-devel* 2^nul') do (
-            set "TARGET_DEV_DIR=%%i"
-        )
-        if not defined TARGET_DEV_DIR (
-            for /f "delims=" %%i in ('dir /b /s C:\php-sdk\buildconf.bat 2^nul') do set "CONF_PATH=%%~dpi"
-        )
-        if defined CONF_PATH set "TARGET_DEV_DIR=%CONF_PATH:~0,-1%"
+        REM 1. 强行进入绝对物理路径（如果多嵌套了一层，通过两步切换100%切入）
+        cd /d C:\php-sdk\php-devel-pack
+        cd php-8.2.13-devel-v16-x64 2>nul || cd php-8.2.13-devel-v16-x64\php-8.2.13-devel-v16-x64
+        echo === 当前放置源码的目录是: %CD% ===
         
-        echo === 找到的开发包目录是: %TARGET_DEV_DIR% ===
-        cd /d "%TARGET_DEV_DIR%" || exit 1
-        
-        REM 2. 放置源码
+        REM 2. 安全清理并克隆
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
-        git clone https://github.com ext\v8js
+        git clone https://github.com/phpv8/v8js.git ext\v8js
 
     # ================= 编译拆解阶段 2：执行环境初始化与配置 =================
     - name: Configure PHP Build Environment
       shell: cmd
       run: |
-        REM 1. 初始化 PHP SDK
-        cd /d C:\php-sdk
+        REM 1. 初始化 PHP SDK 环境
+        cd /d C:\php-sdk || exit 1
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
         
-        REM 2. 全盘搜索 buildconf.bat 的实际所在目录（一击必中）
-        for /f "delims=" %%i in ('dir /b /s C:\php-sdk\buildconf.bat') do set "REAL_DEVEL_DIR=%%~dpi"
-        echo === 探测到 buildconf.bat 的绝对路径是: %REAL_DEVEL_DIR% ===
+        REM 2. 稳妥切入编译主目录并执行官方配置
+        cd php-devel-pack
+        cd php-8.2.13-devel-v16-x64 2>nul || cd php-8.2.13-devel-v16-x64\php-8.2.13-devel-v16-x64
+        echo === 当前配置构建的目录是: %CD% ===
         
-        REM 3. 切入正确路径并执行配置
-        cd /d "%REAL_DEVEL_DIR%" || exit 1
         call buildconf.bat --force || exit 1
         call configure.bat --with-v8js=shared --with-v8-dir=D:\v8-deps --enable-debug=no || exit 1
 
@@ -138,19 +130,18 @@ jobs:
     - name: Run NMAKE Compilation
       shell: cmd
       run: |
-        REM 1. 初始化 PHP SDK
-        cd /d C:\php-sdk
+        REM 1. 初始化 PHP SDK 环境
+        cd /d C:\php-sdk || exit 1
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
         
-        REM 2. 自动搜索编译主目录
-        for /f "delims=" %%i in ('dir /b /s C:\php-sdk\buildconf.bat') do set "REAL_DEVEL_DIR=%%~dpi"
+        REM 2. 稳妥切入编译主目录并执行内核编译
+        cd php-devel-pack
+        cd php-8.2.13-devel-v16-x64 2>nul || cd php-8.2.13-devel-v16-x64\php-8.2.13-devel-v16-x64
+        echo === 当前NMAKE执行的目录是: %CD% ===
         
-        REM 3. 强制编译
-        cd /d "%REAL_DEVEL_DIR%" || exit 1
         nmake clean
         nmake
-
         
     - name: Archive Build Artifacts
       uses: actions/upload-artifact@v4
