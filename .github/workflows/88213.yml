@@ -140,9 +140,8 @@ jobs:
       run: |
         if not exist "${{ env.PHP_DEV_PACK_DIR }}" (
           echo 【致命错误】系统未检测到完整的 PHP 开发包目录！说明上游下载解压步骤已翻车，请检查网络或盘符！
-          exit 1
         )
-        cd /d "${{ env.PHP_DEV_PACK_DIR }}" || exit 1
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
         git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
@@ -151,23 +150,23 @@ jobs:
     - name: Configure PHP Build Environment
       shell: cmd
       run: |
-        cd /d "${{ env.PHP_SDK_ROOT }}" || exit 1
+        cd /d "${{ env.PHP_SDK_ROOT }}"
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        cd /d "${{ env.PHP_DEV_PACK_DIR }}" || exit 1
-        call buildconf.bat --force || exit 1
-        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no || exit 1
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        call buildconf.bat --force
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
 
     # 将设置变量与 nmake 清理、编译合并在单步骤内执行
     - name: Run NMAKE Compilation
       shell: cmd
       run: |
-        cd /d "${{ env.PHP_SDK_ROOT }}" || exit 1
+        cd /d "${{ env.PHP_SDK_ROOT }}"
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        cd /d "${{ env.PHP_DEV_PACK_DIR }}" || exit 1
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         nmake clean
-        nmake || exit 1
+        nmake
         
     - name: Archive Build Artifacts
       uses: actions/upload-artifact@v4
