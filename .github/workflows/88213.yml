@@ -58,14 +58,14 @@ jobs:
           v8-build-cache-${{ runner.os }}-
     # ================= 缓存设置结束 =================
 
-    - name: Add MSVC x64 Environment
+    - name: "添加 MSVC x64 编译环境"
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
         vsversion: "${{ env.VS_VERSION_ACTION }}" # 必须改为Visual Studio 2019 (VS16)，从而完美匹配 php-8.2.13-Win32-vs16|允许加载 windows-2022 镜像中原生拥有的 VS2022 环境
         toolset: "${{ env.MSVC_TOOLSET }}" # 强制加载 MSVC v142 (即 VS2019) 编译器|对应的 Microsoft Visual C++ 编译器工具集版本|VS 2019 最终更新 (16.11): _MSC_VER == 1929 (MSVC 14.29)
 
-    - name: Download and Setup Depot Tools
+    - name: "下载并安装 Depot Tools（谷歌编译工具）"
       shell: bash
       run: |
         FIXED_WORKSPACE=$(echo "$GITHUB_WORKSPACE" | sed 's/\\/\//g')
@@ -83,7 +83,7 @@ jobs:
         fi
         echo "$TARGET_DIR" >> $GITHUB_PATH
 
-    - name: Fetch V8 Source Code
+    - name: "获取 V8 源代码"
       shell: bash
       env:
         DEPOT_TOOLS_WIN_TOOLCHAIN: 0
@@ -103,7 +103,7 @@ jobs:
         gclient sync
         gclient runhooks
 
-    - name: Build V8 Engine
+    - name: "编译 V8"
       shell: cmd
       env:
         DEPOT_TOOLS_WIN_TOOLCHAIN: 0
@@ -115,28 +115,51 @@ jobs:
         call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\"" || exit 1
         ninja -C out.gn\x64.release v8_monolith
 
-    - name: Setup PHP SDK and Pull PHP 8.2.13 Devel Pack
+    - name: "安装 PHP-SDK 并拉取 PHP 开发包"
       shell: powershell
       run: |
         if (-not (Test-Path "${{ env.PHP_SDK_ROOT }}")) {
             git clone "${{ env.SDK_BINARYTOOLS_URL }}" "${{ env.PHP_SDK_ROOT }}"
         }
         
-        # 使用自建独立目录避免污染
         $downloadDir = New-Item -ItemType Directory -Force -Path "${{ env.V8_PDT }}"
         cd $downloadDir.FullName
         
         Invoke-WebRequest -Uri "${{ env.PHP_DEVEL_PACK_URL }}" -OutFile "${{ env.PHP_ZIP_FILE_NAME }}"
+        if (Test-Path "${{ env.PHP_DEV_TEMP_DIR }}") {
+            Remove-Item -Recurse -Force "${{ env.PHP_DEV_TEMP_DIR }}"
+        }
         Expand-Archive -Path "${{ env.PHP_ZIP_FILE_NAME }}" -DestinationPath "${{ env.PHP_DEV_TEMP_DIR }}" -Force
-        
         if (Test-Path "${{ env.PHP_DEV_PACK_DIR }}") {
             Remove-Item -Recurse -Force "${{ env.PHP_DEV_PACK_DIR }}"
         }
         
-        # 绝对稳妥的重命名移动机制
-        Move-Item -Path "${{ env.PHP_DEV_TEMP_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" -Destination "${{ env.PHP_DEV_PACK_DIR }}" -Force
+        # 定义优先匹配的目标绝对路径
+        $primaryPath = Join-Path "${{ env.PHP_DEV_TEMP_DIR }}" "${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}"
+        $finalTargetDir = $null
+        
+        # 【核心逻辑控制】第一步：先判断你定义的文件夹是否存在
+        if (Test-Path $primaryPath) {
+            Write-Host "【第一模式】成功匹配到预定义的文件夹: $primaryPath"
+            $finalTargetDir = Get-Item $primaryPath
+        } else {
+            # 第二步：如果定义的文件夹不存在，降级启动自动智能匹配
+            Write-Warning "【第二模式】未找到预定义文件夹，启动全自动智能探测模式..."
+            $finalTargetDir = Get-ChildItem -Path "${{ env.PHP_DEV_TEMP_DIR }}" | Where-Object { 
+                $_.PSIsContainer -and (Test-Path (Join-Path $_.FullName "phpize.bat"))
+            } | Select-Object -First 1
+        }
+        
+        # 兜底：如果两种模式都没能捞出任何有效目录，才彻底熔断
+        if ($null -eq $finalTargetDir) {
+            Write-Error "【致命错误】无论通过配置项还是自动搜索，解压目录中均无法定位到合法的 PHP 开发包！"
+            exit 1
+        }
+        
+        Write-Host "最终确定移动的 PHP 核心包路径为: $($finalTargetDir.FullName)"
+        Move-Item -Path $finalTargetDir.FullName -Destination "${{ env.PHP_DEV_PACK_DIR }}" -Force
 
-    - name: Prepare V8 Libraries for PHP Extension
+    - name: "为 PHP 扩展准备 V8 依赖库"
       shell: cmd
       run: |
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
@@ -149,7 +172,7 @@ jobs:
         if exist out.gn\x64.release\icudtl.dat copy out.gn\x64.release\icudtl.dat "${{ env.V8_DEPS_DIRLIB_2 }}"
         if exist out.gn\x64.release\snapshot_blob.bin copy out.gn\x64.release\snapshot_blob.bin "${{ env.V8_DEPS_DIRLIB_2 }}"
 
-    - name: Clone PHP V8Js Extension Source
+    - name: "克隆 PHP V8Js 扩展源码"
       shell: cmd
       run: |
         if not exist "${{ env.PHP_DEV_PACK_DIR }}" (
@@ -162,7 +185,7 @@ jobs:
         git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
 
     # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
-    - name: Configure PHP Build Environment
+    - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
@@ -174,7 +197,7 @@ jobs:
         call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
 
     # 将设置变量与 nmake 清理、编译合并在单步骤内执行
-    - name: Run NMAKE Compilation
+    - name: "运行 NMAKE 编译"
       shell: cmd
       run: |
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
@@ -185,10 +208,10 @@ jobs:
         nmake clean
         nmake
         
-    - name: Archive Build Artifacts
+    - name: "归档"
       uses: actions/upload-artifact@v4
       with:
-        name: php-8.2.13-v8-wasm-dll
+        name: php-v8dll
         path: |
           ${{ env.PHP_DEV_PACK_DIR }}/Release*/php_v8js.dll
           ${{ github.workspace }}/v8-build/v8/out.gn/x64.release/icudtl.dat
