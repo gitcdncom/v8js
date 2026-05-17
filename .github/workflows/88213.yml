@@ -205,7 +205,8 @@ jobs:
       run: |
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        if not exist "ext\v8js" mkdir "ext\v8js"
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         call phpize.bat --extdir=ext\v8js
-        cd /d "${{ env.PHP_DEV_PACK_DIR }}\include\ext\v8js"
-        call "${{ env.PHP_DEV_PACK_DIR }}\include\configure.bat" --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js"
+        call "${{ env.PHP_DEV_PACK_DIR }}\configure.bat" --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
