@@ -128,10 +128,16 @@ jobs:
       run: |
         :: 无需修改上面的全局 env 配置，激活谷歌原生的纯 Clang 编译模式！v8_enable_sandbox use_custom_libcxx
         set "DEPOT_TOOLS_WIN_TOOLCHAIN=1"
+
         set "PATH=%GITHUB_WORKSPACE%\depot_tools;%PATH%"
         set "PYTHONPATH=%GITHUB_WORKSPACE%\depot_tools"
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
+
+        cd /d "%GITHUB_WORKSPACE%\v8-build"
+        call gclient runhooks || exit 1
+        cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
+
         :: is_custom_libcxx=false use_custom_libcxx=false visual_studio_version="2019" v8_enable_sandbox
         call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\"" || exit 1
         ninja -C out.gn\x64.release v8_monolith || exit 1
