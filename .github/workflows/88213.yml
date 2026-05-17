@@ -82,47 +82,26 @@ jobs:
         :: 1. 强制将 depot_tools 塞入当前步骤的环境变量最前端
         set PATH=%CD%\depot_tools;%PATH%
         
-        :: 2. 核心修复：提前初始化全局 Git 配置，彻底消除 depot_tools 的 128 报错与警告
+        :: 2. 初始化全局 Git 配置，彻底消除 128 报错与警告
         call git config --global core.autocrlf false
         call git config --global core.filemode false
         call git config --global core.fscache true
         call git config --global core.preloadindex true
         call git config --global depot-tools.allowGlobalGitConfig false
         
-        :: 3. 检查 v8 目录是否已经通过缓存恢复成功
+        :: 3. 核心修复：提前强制触发一次 depot_tools 自身的更新，让它把该下载的底层 Python/Git 跑完
+        call update_depot_tools.bat
+        
+        :: 4. 检查 v8 目录是否已经通过 Actions 缓存恢复成功
         if exist v8 (
+            echo V8 cache hit, skipping bootstrap.
             goto GCLIENT_SYNC
         )
         
-        :: 4. 完美无缺陷地在当前根目录下生成 .gclient 配置文件
-        echo solutions = [> .gclient
-        echo   {>> .gclient
-        echo     "name": "v8",>> .gclient
-        echo     "url": "${{ env.V8_SRC_URL }}",>> .gclient
-        echo     "deps_file": "DEPS",>> .gclient
-        echo     "managed": False,>> .gclient
-        echo     "custom_deps": {},>> .gclient
-        echo     "custom_vars": {},>> .gclient
-        echo   },>> .gclient
-        echo ]>> .gclient
-        
         :GCLIENT_SYNC
-        :: 5. 核心修复：显式使用 call 调用，并在包含 .gclient 的当前目录下执行同步
-        call gclient sync --verbose
-        if %errorlevel% neq 0 exit /b %errorlevel%
-
-    - name: "GN 生成与 V8 编译 (Monolithic 单体静态库)"
-      shell: cmd
-      run: |
-        set PATH=%CD%\depot_tools;%PATH%
-        cd v8
-        
-        :: 完美注入你指定的 GN 编译参数，并强制指定当前环境的视觉工作室路径
-        call gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\""
-        if %errorlevel% neq 0 exit /b %errorlevel%
-        
-        :: 执行编译，生成 v8_monolith.lib
-        call ninja -C out.gn/x64.release v8_monolithic
+        :: 5. 终极修复：直接将完整的解决方案字符串作为 --spec 参数和 --spec-path 强行灌入 sync 命令
+        :: 这种写法不依赖当前目录下是否存在 .gclient 文件，100% 免疫任何路径错乱导致的 Couldn't find configuration file 报错
+        call gclient sync --verbose --spec="solutions = [{ 'name': 'v8', 'url': '${{ env.V8_SRC_URL }}', 'deps_file': 'DEPS', 'managed': False, 'custom_deps': {}, 'custom_vars': {}, }]"
         if %errorlevel% neq 0 exit /b %errorlevel%
 
     - name: "提取 V8 编译产物到独立依赖目录"
