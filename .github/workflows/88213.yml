@@ -250,3 +250,33 @@ jobs:
         :: 10. 【强熔断断言】如果两处都没有，说明 configure 触发了静默崩溃，必须在此强行阻断
         echo 【致命错误】configure.bat 未能成功生成 Makefile 构建图纸！请仔细检查上方配置检测日志！
         exit /b 1
+
+    - name: "运行 NMAKE 编译"
+      shell: cmd
+      run: |
+        :: 1. 激活工具链与官方 SDK 变量环境
+        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        cd /d "${{ env.PHP_SDK_ROOT }}"
+        if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
+        if exist phpsdk_setvars.bat call phpsdk_setvars.bat
+        
+        :: 2. 回到主开发包目录
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        
+        :: 3. 二次防御性检查：确保 Makefile 物理存在，否则不盲目开工
+        if not exist "Makefile" (
+            echo 【致命错误】在编译前未检测到 Makefile 文件！nmake 无法启动！
+            exit /b 1
+        )
+        
+        :: 4. 启动编译
+        echo [INFO] 正在启动 nmake 清理与构建...
+        nmake clean
+        nmake
+        if %ERRORLEVEL% neq 0 (
+            echo 【致命错误】NMAKE 编译过程中发生 C++ 链接或语法错误！
+            exit /b %ERRORLEVEL%
+        )
+        
+        echo [SUCCESS] php_v8js.dll 二进制扩展编译全流程顺利完成！
+
