@@ -226,7 +226,7 @@ jobs:
         :: 6. 在扩展根目录下，通过相对路径反向唤醒上级的 configure.bat
         :: 移除引发死锁的 --with-ext-dir，因为当前工作目录就是扩展根目录，它会自动闭嘴
         echo [INFO] 开始在扩展源码根目录运行配置...
-        call ..\..\configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
         echo [SUCCESS] 配置生成成功！
