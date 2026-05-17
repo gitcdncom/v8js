@@ -22,7 +22,7 @@ env:
   # 3. 全局本地公共目录定义
   # 注意：在 GitHub Actions Windows 节点中，D 盘空间通常比 C 盘更充裕，建议拉取和编译均在 D 盘进行
   PHP_SDK_ROOT: "D:\\php-sdk"
-  PHP_DEV_PACK_DIR: "D:\\php-sdk\\php-devel-pack"
+  PHP_DEV_PACK_DIR: "D:\\php-sdk\\php-dev-pack"
   V8_DEPS_DIR: "D:\\v8-deps"
   
   # Depot Tools 依赖的环境变量
@@ -104,13 +104,21 @@ jobs:
       shell: cmd
       run: |
         if not exist "${{ env.PHP_SDK_ROOT }}" mkdir "${{ env.PHP_SDK_ROOT }}"
-        git clone --depth=1 ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\bin"
+        if not exist "${{ env.PHP_SDK_ROOT }}\bin" git clone --depth=1 ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\bin"
         
-        if not exist "${{ env.PHP_DEV_PACK_DIR }}" mkdir "${{ env.PHP_DEV_PACK_DIR }}"
-        curl -Lo "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}" "${{ env.PHP_DEVEL_PACK_URL }}"
-        powershell -Command "Expand-Archive -Path '${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath '${{ env.PHP_DEV_PACK_DIR }}' -Force"
+        :: 1. 强力防御清洗旧包，通过临时过渡目录解压，完美剥离官方带版本号的文件夹外壳
+        if exist "${{ env.PHP_DEV_PACK_DIR }}" rd /s /q "${{ env.PHP_DEV_PACK_DIR }}"
+        mkdir "${{ env.PHP_DEV_PACK_DIR }}"
         
-        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}"
+        if exist "D:\php-sdk\php-dev-pack-tmp" rd /s /q "D:\php-sdk\php-dev-pack-tmp"
+        mkdir "D:\php-sdk\php-dev-pack-tmp"
+        
+        curl -Lo "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_ZIP_FILE_NAME }}" "${{ env.PHP_DEVEL_PACK_URL }}"
+        powershell -Command "Expand-Archive -Path 'D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath 'D:\php-sdk\php-dev-pack-tmp' -Force"
+        
+        :: 2. 将解压出来的最内层核心数据，直接改名并挪移到变量规定的 \php-devel-pack 嵌套子目录下
+        move "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        rd /s /q "D:\php-sdk\php-dev-pack-tmp"
 
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
