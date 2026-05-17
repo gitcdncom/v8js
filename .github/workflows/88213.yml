@@ -164,4 +164,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: php_v8js-dll
-        path: D:\v8js\x64\Release*\*
+        path: |
+          D:\v8js\x64\Release*\*
+          D:\build_v8js_debug.log
