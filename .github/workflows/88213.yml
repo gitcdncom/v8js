@@ -207,4 +207,5 @@ jobs:
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         call phpize.bat --extdir=ext\v8js
-        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js"
+        call "${{ env.PHP_DEV_PACK_DIR }}\configure.bat" --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
