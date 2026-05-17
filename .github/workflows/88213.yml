@@ -202,44 +202,34 @@ jobs:
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
-        :: 1. 注入 PHP-SDK 基础工具链
-        set "PATH=C:\php-sdk\bin;%PATH%"
+        :: 1. 注入工具链
+        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         
-        :: 2. 切入 PHP 核心开发包目录
-        cd /d "C:\php-sdk\php-dev-pack"
-        if not exist "ext\v8js\config.w32" (
-            echo 【致命错误】未找到 ext\v8js\config.w32 文件！
-            exit /b 1
+        :: 2. 切入 PHP 开发包目录
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        
+        :: 3. 兼容你的原有源码拷贝逻辑
+        if not exist "ext\v8js" mkdir "ext\v8js"
+        if exist "%GITHUB_WORKSPACE%\ext\v8js" (
+            xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         )
         
-        :: 3. 强行抹除 v8js 内部不兼容 Windows 全局编译的硬编码报错检测
+        :: 4. 【核心修复①】用 PowerShell 彻底抹除 v8js 内部由于参数引发的硬编码报错检测
+        :: 无论它有多少换行或空格，直接将整个 Must be run... 的报错判定替换为安全提示
         powershell -Command "$c = [System.IO.File]::ReadAllText('ext\v8js\config.w32'); $s = [regex]::Replace($c, 'ERROR\(\s*\"Must be run from the root of the extension source\"\s*\);', 'INFO(\"Bypassed directory check.\");'); [System.IO.File]::WriteAllText('ext\v8js\config.w32', $s)"
         
-        :: 4. 执行参数转换（将 ARG_ENABLE 改为 ARG_WITH 从而激活 --with-v8-dir）
+        :: 5. 将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         
-        :: 5. 【核心修正】直接在根目录下运行 call phpize.bat 
-        :: 不要切换到 ext\v8js！直接在主目录下高呼 phpize！
-        :: 这会触发全局扫描机制，把 ext\v8js 绑定为原生组件，并百分之百在当前目录下吐出 configure.bat
-        echo [INFO] Rebuilding global configure scripts to generate configure.bat...
+        :: 6. 执行你验证过可行的 phpize 命令（在当前目录下顺利生成 configure.bat）
+        echo [INFO] Rebuilding configure scripts...
         call phpize.bat
-        if %ERRORLEVEL% neq 0 (
-            echo [FATAL ERROR] phpize failed to generate configuration files!
-            exit /b %ERRORLEVEL%
-        )
+        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        :: 6. 安全断言：检查 configure.bat 是否成功生成
-        if not exist "configure.bat" (
-            echo 【致命错误】phpize 执行完毕，但依然未能成功生成 configure.bat 文件！
-            exit /b 1
-        )
-        
-        :: 7. 此时 configure.bat 已 100% 存在，放心大胆地调用它
-        echo [INFO] Running configure.bat for v8js...
-        call configure.bat --with-v8js=shared --with-v8-dir="D:\v8-deps" --enable-debug=no
-        if %ERRORLEVEL% neq 0 (
-            echo [FATAL ERROR] configure.bat compilation diagram generation failed!
-            exit /b %ERRORLEVEL%
-        )
+        :: 7. 【核心修复②】去掉 --with-ext-dir 参数！
+        :: 因为 phpize 已经在全局树中帮我们登记好了 v8js，直接进行全树链接即可
+        echo [INFO] Running configure.bat...
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
         echo [SUCCESS] configure.bat 成功执行，全局环境配置完成！
