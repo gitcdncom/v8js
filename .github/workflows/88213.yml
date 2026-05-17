@@ -67,6 +67,8 @@ jobs:
           git clone --depth=1 ${{ env.DEPOT_TOOLS_URL }} D:\depot_tools
         )
         set "PATH=D:\depot_tools;%PATH%"
+        cd /d D:\
+        echo solutions = [ { 'name': 'v8', 'url': '${{ env.V8_SRC_URL }}', 'deps_file': 'DEPS', 'managed': False, 'custom_deps': {}, 'custom_vars': {} } ] > .gclient
         call gclient
 
     - name: "同步 V8 源码"
