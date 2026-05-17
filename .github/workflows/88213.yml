@@ -20,14 +20,14 @@ env:
   V8JS_EXT_URL: "https://github.com/phpv8/v8js.git"
 
   # 3. 全局本地公共目录定义
-  PHP_SDK_ROOT: "C:/php-sdk"
-  PHP_DEV_PACK_DIR: "C:/php-sdk/php-dev-pack"
-  PHP_DEV_TEMP_DIR: "C:/php-sdk/php-dev-temp"
-  V8_DEPS_DIR: "D:/v8-deps"
-  V8_DEPS_DIRLIB: "D:/v8-deps/lib"
-  V8_DEPS_DIRINC: "D:/v8-deps/include"
-  V8_DEPS_DIRLIB_2: "D:/v8-deps/lib/"
-  V8_DEPS_DIRINC_2: "D:/v8-deps/include/"
+  PHP_SDK_ROOT: "C:\\php-sdk"
+  PHP_DEV_PACK_DIR: "C:\\php-sdk\\php-dev-pack"
+  PHP_DEV_TEMP_DIR: "C:\\php-sdk\\php-dev-temp"
+  V8_DEPS_DIR: "D:\\v8-deps"
+  V8_DEPS_DIRLIB: "D:\\v8-deps\\lib"
+  V8_DEPS_DIRINC: "D:\\v8-deps\\include"
+  V8_DEPS_DIRLIB_2: "D:\\v8-deps\\lib\\"
+  V8_DEPS_DIRINC_2: "D:\\v8-deps\\include\\"
   V8_PDT: "C:/phpdowtemp"
 # ====================================================================
 
@@ -205,9 +205,6 @@ jobs:
       run: |
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         powershell -Command "(Get-Content '${{ env.PHP_DEV_PACK_DIR }}\ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content '${{ env.PHP_DEV_PACK_DIR }}\ext\v8js\config.w32'"
-        cd /d "${{ env.PHP_SDK_ROOT }}"
-        if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
-        if exist phpsdk_setvars.bat call phpsdk_setvars.bat
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         call buildconf.bat --force
         call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
