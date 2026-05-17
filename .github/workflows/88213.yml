@@ -104,21 +104,13 @@ jobs:
       shell: cmd
       run: |
         if not exist "${{ env.PHP_SDK_ROOT }}" mkdir "${{ env.PHP_SDK_ROOT }}"
-        if not exist "${{ env.PHP_SDK_ROOT }}\bin" git clone --depth=1 ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\bin"
+        git clone --depth=1 ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\bin"
         
-        :: 采用独立的外部过渡临时目录进行解压，规避同名套娃与残留死锁
-        if exist "D:\php-sdk\php-dev-pack-tmp" rd /s /q "D:\php-sdk\php-dev-pack-tmp"
-        mkdir "D:\php-sdk\php-dev-pack-tmp"
+        if not exist "${{ env.PHP_DEV_PACK_DIR }}" mkdir "${{ env.PHP_DEV_PACK_DIR }}"
+        curl -Lo "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}" "${{ env.PHP_DEVEL_PACK_URL }}"
+        powershell -Command "Expand-Archive -Path '${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath '${{ env.PHP_DEV_PACK_DIR }}' -Force"
         
-        curl -Lo "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_ZIP_FILE_NAME }}" "${{ env.PHP_DEVEL_PACK_URL }}"
-        powershell -Command "Expand-Archive -Path 'D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath 'D:\php-sdk\php-dev-pack-tmp' -Force"
-        
-        :: 【核心路径精准剥离】清理旧的目标路径，把自带的内层开发文件夹整体 move 出来，完美对齐
-        if exist "${{ env.PHP_DEV_PACK_DIR }}" rd /s /q "${{ env.PHP_DEV_PACK_DIR }}"
-        move "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
-        
-        :: 彻底擦除临时过渡工作区
-        rd /s /q "D:\php-sdk\php-dev-pack-tmp"
+        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
 
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
