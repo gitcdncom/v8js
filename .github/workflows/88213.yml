@@ -110,7 +110,7 @@ jobs:
         curl -Lo "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}" "${{ env.PHP_DEVEL_PACK_URL }}"
         powershell -Command "Expand-Archive -Path '${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath '${{ env.PHP_DEV_PACK_DIR }}' -Force"
         
-        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-dev-pack"
+        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
 
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
@@ -122,8 +122,8 @@ jobs:
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
         
-        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-dev-pack"
-        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-dev-pack"
+        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
