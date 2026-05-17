@@ -132,20 +132,33 @@ jobs:
       run: |
         set "PATH=D:\depot_tools;%PATH%"
         
-        :: 1. 在普通的顶层物理位置干净地克隆源码
         cd /d D:\
         if exist v8js rd /s /q v8js
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
         
-        :: 2. 【核心对齐修复】直接使用绝对路径强制点杀 phpize.bat，杜绝因为 PATH 变量覆盖产生的未识别报错
+        :: 【硬核重定向日志雷达】将所有阶段的输出和红字报错，全部一股脑强行逼进 D:\build_v8js_debug.log 中
         echo cd /d D:\v8js > D:\compile_v8js.bat
-        echo call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack" >> D:\compile_v8js.bat
-        echo call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack" >> D:\compile_v8js.bat
-        echo nmake >> D:\compile_v8js.bat
+        echo echo === START PHPIZE === >> D:\compile_v8js.bat
+        echo call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack" ^>^> D:\build_v8js_debug.log 2^>^ pipeline.err >> D:\compile_v8js.bat
+        echo echo === START CONFIGURE === >> D:\compile_v8js.bat
+        echo call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack" ^>^= D:\build_v8js_debug.log 2^>^>^&1 >> D:\compile_v8js.bat
+        echo echo === START NMAKE === >> D:\compile_v8js.bat
+        echo nmake ^>^> D:\build_v8js_debug.log 2^>^>^&1 >> D:\compile_v8js.bat
         
-        :: 3. 投喂给包装运行器，在纯净沙盒内部一鼓作气熔炼完成
         cd /d "${{ env.PHP_SDK_ROOT }}\bin"
         call phpsdk-starter.bat -c vs16 -a x64 -t D:\compile_v8js.bat
+
+    - name: "强制打印/上传构建阶段诊断日志"
+      if: always()
+      shell: cmd
+      run: |
+        if exist D:\build_v8js_debug.log (
+          echo ==================== 编译底层诊断日志开始 ====================
+          type D:\build_v8js_debug.log
+          echo ==================== 编译底层诊断日志结束 ====================
+        ) else (
+          echo 警告：未成功生成调试日志文件 D:\build_v8js_debug.log
+        )
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
