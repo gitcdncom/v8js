@@ -116,14 +116,12 @@ jobs:
       shell: cmd
       run: |
         set "PATH=D:\depot_tools;%PATH%"
-        for %%F in ("${{ env.PHP_SDK_ROOT }}\bin\phpsdk-*.bat") do (
-            call "%%F"
-        )
+        call "${{ env.PHP_SDK_ROOT }}\bin\phpsdk-vc16-x64.bat"
         cd /d D:\
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
         
-        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         nmake
 
