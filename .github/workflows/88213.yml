@@ -214,9 +214,9 @@ jobs:
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         )
         
-        :: 4. 【核心修复①】用 PowerShell 彻底抹除 v8js 内部由于参数引发的硬编码报错检测
-        :: 无论它有多少换行或空格，直接将整个 Must be run... 的报错判定替换为安全提示
-        powershell -Command "$c = [System.IO.File]::ReadAllText('ext\v8js\config.w32'); $s = [regex]::Replace($c, 'ERROR\(\s*\"Must be run from the root of the extension source\"\s*\);', 'INFO(\"Bypassed directory check.\");'); [System.IO.File]::WriteAllText('ext\v8js\config.w32', $s)"
+        :: 4. 【终极核心修复】用模糊文本替换，直接把包含 "Must be run" 的整行及前后大括号彻底蒸发
+        :: 不论它源码里怎么写换行和空格，只要遇到这几个词，直接物理切除，替换为无害的打印
+        powershell -Command "$p = 'ext\v8js\config.w32'; $c = [System.IO.File]::ReadAllText($p); $s = [regex]::Replace($c, 'if\s*\(\s*typeof\(BUILD_DIR\)[^}]+}', 'INFO(\"Bypassed hardcoded directory check.\");'); [System.IO.File]::WriteAllText($p, $s)"
         
         :: 5. 将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
@@ -226,8 +226,7 @@ jobs:
         call phpize.bat
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        :: 7. 【核心修复②】去掉 --with-ext-dir 参数！
-        :: 因为 phpize 已经在全局树中帮我们登记好了 v8js，直接进行全树链接即可
+        :: 7. 去掉 --with-ext-dir 参数，直接进行全树链接
         echo [INFO] Running configure.bat...
         call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
