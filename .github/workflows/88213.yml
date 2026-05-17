@@ -202,10 +202,36 @@ jobs:
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
-        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
-        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
-        if not exist "ext\v8js" mkdir "ext\v8js"
-        xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js/" /S /E /Y /I
+        :: 1. 注入 PHP-SDK 基础工具链
+        set "PATH=C:\php-sdk\bin;%PATH%"
+        
+        :: 2. 切入 PHP 核心开发包目录
+        cd /d "C:\php-sdk\php-dev-pack"
+        
+        :: 3. 彻底移除原有的 xcopy 逻辑，直接对本地已存在的 v8js 源码进行参数修改
+        if not exist "ext\v8js\config.w32" (
+            echo 【致命错误】在 ext\v8js 目录下未找到 config.w32 文件！请检查上游克隆步骤！
+            exit /b 1
+        )
+        
+        :: 4. 精准修改 config.w32（启用外部 V8 依赖寻址）
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
-        call phpize.bat --extdir=ext\v8js
-        call configure.bat --with-ext-dir=ext\v8js --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        
+        :: 5. 直接运行全局 phpize.bat (不带任何 --extdir 参数)
+        :: 这样工具会自动扫描整个 ext\ 目录并将 v8js 编入主编译树
+        echo [INFO] Rebuilding global configure scripts...
+        call phpize.bat
+        if %ERRORLEVEL% neq 0 (
+            echo [FATAL ERROR] phpize failed!
+            exit /b %ERRORLEVEL%
+        )
+        
+        :: 6. 移除 --with-ext-dir，改用标准的全局扩展注册方式
+        echo [INFO] Running configure for v8js...
+        call configure.bat --with-v8js=shared --with-v8-dir="D:\v8-deps" --enable-debug=no
+        if %ERRORLEVEL% neq 0 (
+            echo [FATAL ERROR] configure.bat failed!
+            exit /b %ERRORLEVEL%
+        )
+        
+        echo [SUCCESS] 全局环境配置成功！
