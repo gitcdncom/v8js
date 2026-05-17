@@ -86,9 +86,9 @@ jobs:
       run: |
         set DEPOT_TOOLS_UPDATE=0
         set "PATH=D:\depot_tools;%PATH%"
+        if exist D:\v8\.git\INDEX_ERR rd /s /q D:\v8
         if not exist D:\v8 (
-          cd /d D:\
-          call fetch v8
+          git clone --branch lkgr --depth=1 --progress ${{ env.V8_SRC_URL }} D:\v8
         )
         copy /Y D:\.gclient D:\v8\.gclient
         cd /d D:\v8
