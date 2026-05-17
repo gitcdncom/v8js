@@ -105,7 +105,7 @@ jobs:
         cd "${{ github.workspace }}/v8-build/v8"
         
         # 使用 GN 生成构建配置 (单文件模式以契合 V8Js)
-        gn gen out.gn/x64.release --args="is_debug=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\" v8_monolithic=true v8_use_external_startup_data=false is_component_build=false"
+        gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\"" || exit 1
         
         # 编译单体静态库
         ninja -C out.gn/x64.release v8_monolith
