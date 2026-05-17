@@ -116,7 +116,7 @@ jobs:
       shell: cmd
       run: |
         set "PATH=D:\depot_tools;%PATH%"
-        call "${{ env.PHP_SDK_ROOT }}\bin\php-sdk-vc15-x64.bat"
+        call "${{ env.PHP_SDK_ROOT }}\bin\phpsdk-vc16-x64.bat"
         
         cd /d D:\
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
