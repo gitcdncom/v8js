@@ -208,7 +208,7 @@ jobs:
         if not exist "ext\v8js" mkdir "ext\v8js"
         if exist "%GITHUB_WORKSPACE%\ext\v8js" (
             echo [INFO] Syncing custom source from workspace...
-            xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\\" /S /E /Y /I
+            xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         ) else (
             echo [INFO] Workspace source empty. Fetching from defined V8JS_EXT_URL...
             rmdir /S /Q ext\v8js
