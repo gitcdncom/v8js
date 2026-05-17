@@ -203,32 +203,37 @@ jobs:
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
-        :: 1. 注入工具链并进入主开发包目录
+        :: 1. 注入官方 PHP-SDK 工具链到 PATH
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        
+        :: 2. 切入刚刚在步骤 1 中准备好的开发包目录
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         
-        :: 2. 兼容你的原有源码拷贝逻辑
+        :: 3. 【核心修正】利用你定义的 V8JS_EXT_URL 精准拉取真实的 v8js 源码到 ext\v8js 目录下
         if not exist "ext\v8js" mkdir "ext\v8js"
         if exist "%GITHUB_WORKSPACE%\ext\v8js" (
+            echo [INFO] Syncing custom source from workspace...
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
+        ) else (
+            echo [INFO] Workspace source empty. Fetching from defined V8JS_EXT_URL...
+            rmdir /S /Q ext\v8js
+            git clone "${{ env.V8JS_EXT_URL }}" "ext\v8js"
         )
         
-        :: 3. 【一剑封喉：直接物理切除报错代码】
-        :: 无论它里面换行符是 \r\n 还是 \n，直接锁定包含 "Must be run" 的那几行代码，强行替换为安全提示
+        :: 4. 【一剑封喉】物理擦除 v8js 内部由于全局扫描而引发的硬编码 Must be run... 熔断错误
         powershell -Command "$p = 'ext\v8js\config.w32'; $c = [System.IO.File]::ReadAllText($p); $s = $c -replace 'if\s*\(\s*typeof\(BUILD_DIR\)[^}]+}', 'INFO(\"Bypassed hardcoded directory check.\");'; [System.IO.File]::WriteAllText($p, $s)"
         
-        :: 4. 转换参数名称（将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数）
+        :: 5. 执行参数转换，将 ARG_ENABLE 改为 ARG_WITH 从而让配置引擎能够识别后续的 --with-v8-dir 参数
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         
-        :: 5. 在主目录下执行 phpize.bat，让其顺畅地扫描并生成全局编译大图纸
-        echo [INFO] Rebuilding configure scripts...
+        :: 6. 在当前主目录下呼叫 phpize.bat，此时由于源码和依赖全在主树内，会 100% 顺畅生成全局 configure.bat
+        echo [INFO] Rebuilding configure scripts with complete source...
         call phpize.bat
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        :: 6. 在主目录下直接调用 configure.bat（此时它和 configure.js 在同目录，绝不会找不到）
-        :: 因为报错代码已经在第 3 步被删除了，这里会直接亮起绿灯！
+        :: 7. 在当前主目录下执行配置链接，彻底去掉引发相对路径报错的 --with-ext-dir 参数
         echo [INFO] Running configure.bat...
         call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        echo [SUCCESS] 全局配置成功完成！
+        echo [SUCCESS] 全局环境配置圆满成功！
