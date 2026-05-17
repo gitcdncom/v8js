@@ -200,41 +200,36 @@ jobs:
         git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
 
 # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
-  :: 1. 注入 PHP-SDK 基础工具链到环境变量
-  set "PATH=C:\php-sdk\bin;%PATH%"
-
-  :: 2. 确保扩展目录存在，并进入该目录（必须在扩展根目录下执行 phpize）
-  cd /d "C:\php-sdk\php-dev-pack"
-  if not exist "ext\v8js" mkdir "ext\v8js"
-  
-  :: 3. 健壮的源码覆盖逻辑：仅当工作区存在自定义源码时才复制，否则保留 git clone 的版本
-  if exist "%GITHUB_WORKSPACE%\ext\v8js" (
-      echo [INFO] 检测到本地自定义 v8js 源码，正在覆盖...
-      xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
-  ) else (
-      echo [INFO] 未检测到本地自定义源码，将直接使用 Git Clone 的官方版本。
-  )
-
-  :: 4. 切入 v8js 扩展的根目录（解决 Must be run from the root 报错的关键）
-  cd /d "C:\php-sdk\php-dev-pack\ext\v8js"
-
-  :: 5. 修改 config.w32 参数（支持外部 V8 路径识别）
-  powershell -Command "(Get-Content 'config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'config.w32'"
-
-  :: 6. 在扩展根目录下唤醒 phpize（它会自动引用 C:\php-sdk\bin 里的工具）
-  echo [INFO] 正在初始化扩展配置 (phpize)...
-  call phpize.bat
-  if %ERRORLEVEL% neq 0 (
-      echo 【致命错误】phpize 执行失败！
-      exit /b 1
-  )
-
-  :: 7. 执行配置并关联外部 V8 依赖
-  echo [INFO] 正在生成构建图纸 (configure)...
-  call configure.bat --with-v8js=shared --with-v8-dir="D:\v8-deps" --enable-debug=no
-  if %ERRORLEVEL% neq 0 (
-      echo 【致命错误】configure 执行失败，未能成功链接 V8！
-      exit /b 1
-  )
-
-  echo [SUCCESS] 配置生成成功！可以开始 nmake 编译。
+    - name: "配置 PHP 编译环境"
+      shell: cmd
+      run: |
+        :: 1. 注入工具链
+        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        
+        :: 2. 切入 PHP 核心开发包目录
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        
+        :: 3. 健壮的源码覆盖逻辑
+        :: 如果 GitHub 工作区有自定义源码则进行同步；如果没有，保持上游已有的源码不变，避免 xcopy 报错
+        if exist "%GITHUB_WORKSPACE%\ext\v8js" (
+            echo [INFO] Detected custom source in workspace, syncing...
+            if not exist "ext\v8js" mkdir "ext\v8js"
+            xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
+        ) else (
+            echo [INFO] Workspace is empty. Using the existing v8js source.
+        )
+        
+        :: 4. 精准修改 config.w32 参数（启用外部 V8 依赖识别）
+        powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
+        
+        :: 5. 【核心修复】直接运行不带参数的 phpize.bat
+        :: 这会让工具扫描整个 ext/ 目录（包括 v8js），将其作为内置树统一初始化
+        echo [INFO] Rebuilding configure scripts...
+        call phpize.bat
+        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+        
+        :: 6. 【核心修复】去掉 --with-ext-dir，改用标准的全局扩展注册方式
+        :: 此时 configure 已经完全感知到了 ext/v8js 的存在，彻底解决路径报错
+        echo [INFO] Running configure...
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
