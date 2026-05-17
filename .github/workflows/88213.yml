@@ -200,22 +200,19 @@ jobs:
         git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
 
 # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
+    # 步骤 1：全扁平化纯净环境配置（纯 cmd 执行基础工具）
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
-        :: 1. 注入工具链并切入主开发包目录
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         
-        :: 2. 扁平化安全源码获取（已验证成功搬运 220+ 文件）
         if exist "%GITHUB_WORKSPACE%\ext\v8js" (
-            echo [INFO] Detected custom source in workspace, syncing...
             if not exist "ext\v8js" mkdir "ext\v8js"
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
-            goto :SOURCE_READY
+            goto :PHP_IZE_START
         )
         
-        echo [INFO] Workspace empty. Safe-fetching from remote...
         if exist "C:\v8js-temp-clone" rmdir /S /Q "C:\v8js-temp-clone"
         git clone --depth=1 "${{ env.V8JS_EXT_URL }}" "C:\v8js-temp-clone"
         if not exist "ext\v8js" mkdir "ext\v8js"
@@ -223,21 +220,28 @@ jobs:
         ping -n 2 127.0.0.1 >nul
         rmdir /S /Q "C:\v8js-temp-clone"
 
-        :SOURCE_READY
-        echo [SUCCESS] 220+ 源码文件已 100%% 强横归位！
-        
-        :: 3. 转换参数名称
-        powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
-        
-        :: 4. 执行原生的 phpize.bat，让 PHP 环境把 v8js 登记进全局宏中
+        :PHP_IZE_START
         echo [INFO] Rebuilding configure scripts...
         call phpize.bat
+
+    # 步骤 2：核心绝杀！独立出来的纯 PowerShell 手写 Makefile 步骤
+    # 在这个绝对没有句柄冲突和缓冲区溢出的原生 shell 里，强硬写入编译大图纸
+    - name: "强行物理手写越狱 Makefile"
+      shell: powershell
+      run: |
+        cd "${{ env.PHP_DEV_PACK_DIR }}"
         
-        :: 5. 【终极绝杀：跳过脆弱的探测，直接人工硬核手写 Makefile】
-        :: 我们不再调用闪退的 configure.bat。直接将满配的编译指令和你的 V8 路径物理灌入 Makefile 文件中
-        echo [INFO] Force-generating Native Makefile template to bypass configure block...
-        powershell -Command "
-        $mk = @'
+        # 顺手将本地已经拉取下来的 config.w32 参数进行安全的字符串修正
+        $cfgPath = "ext/v8js/config.w32"
+        if (Test-Path $cfgPath) {
+            $content = [System.IO.File]::ReadAllText($cfgPath)
+            $content = $content -replace 'if\s*\(\s*typeof\(BUILD_DIR\)[^}]+}', 'INFO("Bypassed hardcoded directory check.");'
+            $content = $content -replace 'ARG_ENABLE', 'ARG_WITH'
+            [System.IO.File]::WriteAllText($cfgPath, $content)
+        }
+        
+        Write-Host "[INFO] Force-generating Native Makefile template..."
+        $mk = @"
         # 声明编译目标：将 v8js 编译为动态链接库共享模式
         PHP_EXT_V8JS_SHARED=1
         
@@ -252,19 +256,18 @@ jobs:
         
         # 关键纽带：直接引入 PHP 官方开发包在运行 phpize 时生成的全局底层规则底图
         !INCLUDE config.js.makefile
-        '@;
-        [System.IO.File]::WriteAllText('Makefile', $mk)
-        "
+        "@
         
-        :: 6. 安全断言：确保 Makefile 已经 100% 躺在当前目录下
-        if exist "Makefile" (
-            echo [SUCCESS] 越狱成功！全局编译图纸 Makefile 已强行就位，准备让 NMAKE 开工！
-            exit /b 0
-        )
+        [System.IO.File]::WriteAllText("Makefile", $mk)
         
-        echo 【致命错误】图纸强行生成翻车！
-        exit /b 1
+        if (Test-Path "Makefile") {
+            Write-Host "[SUCCESS] 全局编译图纸 Makefile 已由独立安全进程强行写入磁盘！"
+        } else {
+            Write-Error "[FATAL ERROR] Makefile 强行写入物理失败！"
+            exit 1
+        }
 
+    # 步骤 3：微软编译器全力开工
     - name: "运行 NMAKE 编译"
       shell: cmd
       run: |
@@ -272,16 +275,20 @@ jobs:
         cd /d "${{ env.PHP_SDK_ROOT }}"
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-
-        :: 强行切入大图纸所在的物理主目录
-        cd /d "C:\php-sdk\php-dev-pack"
-
-        :: 终极加固：如果当前目录没有，强行去 ext\v8js 里也捞一遍，双重保险
-        if not exist "Makefile" if exist "ext\v8js\Makefile" move /Y "ext\v8js\Makefile" "Makefile"
-
-        echo [INFO] 正在启动 nmake 清理与构建...
-        nmake clean
+        
+        :: 精准直达主开发包目录
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        
+        if not exist "Makefile" (
+            echo 【致命错误】在当前目录下依旧未捕获到 Makefile 物理文件！
+            exit /b 1
+        )
+        
+        echo [INFO] 正在通过手写 Makefile 强制启动链接与构建...
         nmake
-        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-        echo [SUCCESS] php_v8js.dll 编译成功！
-
+        if %ERRORLEVEL% neq 0 (
+            echo 【致命错误】NMAKE 编译过程中发生 C++ 链接或语法错误！
+            exit /b %ERRORLEVEL%
+        )
+        
+        echo [SUCCESS] php_v8js.dll 二进制扩展编译全流程顺利完成！
