@@ -20,14 +20,14 @@ env:
   V8JS_EXT_URL: "https://github.com/phpv8/v8js.git"
 
   # 3. 全局本地公共目录定义
-  PHP_SDK_ROOT: "C:\\php-sdk"
-  PHP_DEV_PACK_DIR: "C:\\php-sdk\\php-dev-pack"
-  PHP_DEV_TEMP_DIR: "C:\\php-sdk\\php-dev-temp"
-  V8_DEPS_DIR: "D:\\v8-deps"
-  V8_DEPS_DIRLIB: "D:\\v8-deps\\lib"
-  V8_DEPS_DIRINC: "D:\\v8-deps\\include"
-  V8_DEPS_DIRLIB_2: "D:\\v8-deps\\lib\\"
-  V8_DEPS_DIRINC_2: "D:\\v8-deps\\include\\"
+  PHP_SDK_ROOT: "C:/php-sdk"
+  PHP_DEV_PACK_DIR: "C:/php-sdk/php-dev-pack"
+  PHP_DEV_TEMP_DIR: "C:/php-sdk/php-dev-temp"
+  V8_DEPS_DIR: "D:/v8-deps"
+  V8_DEPS_DIRLIB: "D:/v8-deps/lib"
+  V8_DEPS_DIRINC: "D:/v8-deps/include"
+  V8_DEPS_DIRLIB_2: "D:/v8-deps/lib/"
+  V8_DEPS_DIRINC_2: "D:/v8-deps/include/"
   V8_PDT: "C:/phpdowtemp"
 # ====================================================================
 
@@ -152,30 +152,26 @@ jobs:
         if (Test-Path "${{ env.PHP_DEV_PACK_DIR }}") {
             Remove-Item -Recurse -Force "${{ env.PHP_DEV_PACK_DIR }}"
         }
-        
-        # 定义优先匹配的目标绝对路径
+
         $primaryPath = Join-Path "${{ env.PHP_DEV_TEMP_DIR }}" "${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}"
         $finalTargetDir = $null
-        
-        # 【核心逻辑控制】第一步：先判断你定义的文件夹是否存在
+
         if (Test-Path $primaryPath) {
-            Write-Host "【第一模式】成功匹配到预定义的文件夹: $primaryPath"
+            Write-Host "[Mode 1] Successfully matched predefined path: $primaryPath"
             $finalTargetDir = Get-Item $primaryPath
         } else {
-            # 第二步：如果定义的文件夹不存在，降级启动自动智能匹配
-            Write-Warning "【第二模式】未找到预定义文件夹，启动全自动智能探测模式..."
+            Write-Warning "[Mode 2] Predefined path not found. Starting auto detection..."
             $finalTargetDir = Get-ChildItem -Path "${{ env.PHP_DEV_TEMP_DIR }}" | Where-Object { 
                 $_.PSIsContainer -and (Test-Path (Join-Path $_.FullName "phpize.bat"))
             } | Select-Object -First 1
         }
-        
-        # 兜底：如果两种模式都没能捞出任何有效目录，才彻底熔断
+
         if ($null -eq $finalTargetDir) {
-            Write-Error "【致命错误】无论通过配置项还是自动搜索，解压目录中均无法定位到合法的 PHP 开发包！"
+            Write-Error "[FATAL ERROR] PHP development pack could not be located!"
             exit 1
         }
         
-        Write-Host "最终确定移动的 PHP 核心包路径为: $($finalTargetDir.FullName)"
+        Write-Host "Moving core package from: $($finalTargetDir.FullName)"
         Move-Item -Path $finalTargetDir.FullName -Destination "${{ env.PHP_DEV_PACK_DIR }}" -Force
 
     - name: "为 PHP 扩展准备 V8 依赖库"
@@ -187,7 +183,7 @@ jobs:
         mkdir "${{ env.V8_DEPS_DIRINC }}"
         xcopy /S /E /Y "include\*" "${{ env.V8_DEPS_DIRINC_2 }}"
         copy "out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIRLIB_2 }}"
-        copy "out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIRLIB_2 }}\v8.lib"
+        copy "out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIRLIB }}\v8.lib"
         if exist out.gn\x64.release\icudtl.dat copy out.gn\x64.release\icudtl.dat "${{ env.V8_DEPS_DIRLIB_2 }}"
         if exist out.gn\x64.release\snapshot_blob.bin copy out.gn\x64.release\snapshot_blob.bin "${{ env.V8_DEPS_DIRLIB_2 }}"
 
