@@ -87,7 +87,6 @@ jobs:
         if exist D:\v8 if not exist D:\v8\.git (
           rd /s /q D:\v8
         )
-        set DEPOT_TOOLS_UPDATE=0
         set "PATH=D:\depot_tools;%PATH%"
         if not exist D:\v8 (
           cd /d D:\
