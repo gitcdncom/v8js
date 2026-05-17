@@ -205,27 +205,28 @@ jobs:
         :: 1. 注入工具链
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         
-        :: 2. 切入 PHP 开发包目录
+        :: 2. 切入 PHP 开发包主目录并同步源码
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
-        
-        :: 3. 兼容你的原有源码拷贝逻辑
         if not exist "ext\v8js" mkdir "ext\v8js"
         if exist "%GITHUB_WORKSPACE%\ext\v8js" (
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         )
         
-        :: 4. 仅保留最基础的参数名称转换（将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数）
+        :: 3. 转换参数（将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数）
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         
-        :: 5. 执行你验证过可行的 phpize 命令（在当前目录下顺利生成 configure.bat）
-        echo [INFO] Rebuilding configure scripts...
+        :: 4. 在当前主目录执行 phpize.bat，确保完美生成所有的构建基准配置
         call phpize.bat
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        :: 6. 【终极核心修复】在运行 configure.bat 时，直接在命令行末尾强行注入 BUILD_DIR 赋值！
-        :: 这样 v8js 内部检测 typeof(BUILD_DIR) 时会拿到 "release" 从而完美跳过硬编码的 ERROR 熔断！
-        echo [INFO] Running configure.bat with force-injected variables...
-        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no "BUILD_DIR=release"
+        :: 5. 【核心路径修正】切入包含 config.w32 文件的扩展源码根目录
+        cd /d "ext\v8js"
+        echo [INFO] 当前执行配置的工作目录已切入: %CD%
+        
+        :: 6. 在扩展根目录下，通过相对路径反向唤醒上级的 configure.bat
+        :: 移除引发死锁的 --with-ext-dir，因为当前工作目录就是扩展根目录，它会自动闭嘴
+        echo [INFO] 开始在扩展源码根目录运行配置...
+        call ..\..\configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        echo [SUCCESS] configure.bat 成功执行，全局环境配置完成！
+        echo [SUCCESS] 配置生成成功！
