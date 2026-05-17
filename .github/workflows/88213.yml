@@ -42,7 +42,7 @@ jobs:
     - name: "安装依赖"
       run: |
         #choco install git totalcmd -y
-        #choco install re2c winflexbison3 --yes --no-progress
+        choco install re2c winflexbison3 --yes --no-progress
         #choco install git python3 totalcmd -y
         Write-Host "=========================================="
         Write-Host "【提示】未配置或无需配置！"
