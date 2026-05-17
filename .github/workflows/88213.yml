@@ -49,7 +49,7 @@ jobs:
         path: |
           depot_tools
           v8
-        key: v8-build-cache-${{ runner.os }}-${{ env.PHP_ZIP_FILE_NAME }}
+        key: v8-build-cache-${{ runner.os }}-v1
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
 
@@ -60,77 +60,70 @@ jobs:
         vsversion: "${{ env.VS_VERSION_ACTION }}" 
         toolset: "${{ env.MSVC_TOOLSET }}"
 
-    # ==================== 后续补充完整代码 ====================
-
-    - name: "拉取 Depot Tools 并配置环境变量"
+    - name: "配置 Depot Tools"
       shell: cmd
       run: |
-        if not exist "depot_tools" (
+        if not exist depot_tools (
           git clone --depth=1 ${{ env.DEPOT_TOOLS_URL }} depot_tools
         )
-        echo D:\a\${{ github.event.repository.name }}\${{ github.event.repository.name }}\depot_tools>> %GITHUB_PATH%
-
-    - name: "初始化 Depot Tools"
-      shell: cmd
-      run: |
-        set DEPOT_TOOLS_WIN_TOOLCHAIN=0
+        set "PATH=%CD%\depot_tools;%PATH%"
         call gclient
 
-    - name: "拉取 V8 源码与依赖项"
+    - name: "同步 V8 源码"
       shell: cmd
       run: |
-        if not exist "v8" (
+        set "PATH=%CD%\depot_tools;%PATH%"
+        if not exist v8 (
           call fetch v8
         )
         cd v8
-        git fetch origin
+        call git fetch origin
+        call git checkout lkgr
         call gclient sync
 
-    - name: "编译 V8 静态库 (v8_monolithic)"
+    - name: "编译 V8 引擎静态库"
       shell: cmd
       run: |
+        set "PATH=%CD%\depot_tools;%PATH%"
         cd v8
         call gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\""
-        call autoninja -C out.gn/x64.release v8_monolithic
+        call ninja -C out.gn/x64.release v8_monolithic
 
-    - name: "收集 V8 编译产物至 D 盘"
+    - name: "提取并组织 V8 编译产物"
       shell: cmd
       run: |
-        mkdir "${{ env.V8_DEPS_DIR }}\lib"
         mkdir "${{ env.V8_DEPS_DIR }}\include"
-        xcopy /y /s "v8\include\*" "${{ env.V8_DEPS_DIR }}\include\"
-        copy /y "v8\out.gn\x64.release\obj\v8_monolithic.lib" "${{ env.V8_DEPS_DIR }}\lib\"
+        mkdir "${{ env.V8_DEPS_DIR }}\lib"
+        xcopy /E /I /Y "v8\include" "${{ env.V8_DEPS_DIR }}\include"
+        xcopy /Y "v8\out.gn\x64.release\obj\v8_monolithic.lib" "${{ env.V8_DEPS_DIR }}\lib\"
 
-    - name: "配置 PHP SDK 编译环境与开发包"
+    - name: "配置 PHP SDK 环境与安装包"
       shell: cmd
       run: |
-        git clone --depth=1 ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}"
-        mkdir "${{ env.PHP_DEV_PACK_DIR }}"
+        if not exist "${{ env.PHP_SDK_ROOT }}" mkdir "${{ env.PHP_SDK_ROOT }}"
+        git clone --depth=1 ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\bin"
+        
+        if not exist "${{ env.PHP_DEV_PACK_DIR }}" mkdir "${{ env.PHP_DEV_PACK_DIR }}"
         curl -Lo "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}" "${{ env.PHP_DEVEL_PACK_URL }}"
-        powershell -Command "Expand-Archive -Path '${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath '${{ env.PHP_DEV_PACK_DIR }}'"
-        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}\*" "${{ env.PHP_DEV_PACK_DIR }}\"
+        powershell -Command "Expand-Archive -Path '${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath '${{ env.PHP_DEV_PACK_DIR }}' -Force"
+        
+        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
 
-    - name: "克隆 V8Js 扩展源码"
+    - name: "拉取并编译 V8js 扩展"
       shell: cmd
       run: |
-        git clone --depth=1 ${{ env.V8JS_EXT_URL }} D:\v8js
+        set "PATH=%CD%\depot_tools;%PATH%"
+        call "${{ env.PHP_SDK_ROOT }}\bin\php-sdk-vc15-x64.bat"
+        
+        git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
+        cd v8js
+        
+        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        nmake
 
-    - name: "使用 PHP SDK 编译 V8Js 扩展"
-      shell: cmd
-      run: |
-        cd /d "${{ env.PHP_SDK_ROOT }}"
-        :: 激活 PHP 对应 vc16 x64 编译环境工具链壳
-        call phpsdk-vc15-x64.bat -t <<EOF
-        cd /d D:\v8js
-        call phpize
-        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-config="${{ env.PHP_DEV_PACK_DIR }}\php-config"
-        call nmake
-        EOF
-
-    - name: "上传生成的 V8Js 扩展二进制文件"
-      uses: actions/upload-artifact@v4
+    - name: "上传编译产物 (php_v8js.dll)"
+      uses: actions/artifacts@v4
       with:
-        name: php-v8js-extension-x64
-        path: |
-          D:\v8js\x64\Release\php_v8js.dll
-          D:\v8js\x64\Release\php_v8js.pdb
+        name: php_v8js-dll
+        path: v8js\x64\Release\php_v8js.dll
