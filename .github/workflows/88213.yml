@@ -130,18 +130,16 @@ jobs:
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
       run: |
-        set "PATH=D:\depot_tools;%PATH%"
+        :: 1. 【工业级核心破局】手工将 PHP SDK 及其核心依赖包目录直接灌入全局 PATH 变量，彻底绕过官方脚本死锁
+        set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_SDK_ROOT }}\msys2\usr\bin;%PATH%"
 
-        :: 1. 顶层无损克隆
+        :: 2. 顶层干净克隆
         cd /d D:\
         if exist v8js rd /s /q v8js
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
 
-        :: 2. 【硬核爆破修复】绕过 starter 外壳，直接原位调用 SDK 最核心的变量注入批处理
-        call "${{ env.PHP_SDK_ROOT }}\bin\phpsdk_setvars.bat"
-
-        :: 3. 此时环境已然纯净激活，直接顺序轰出最终熔炼三连击，所有的报错和 Makefile 细节将直接百分之百泼在您的屏幕上！
+        :: 3. 此时所有二进制工具就绪，直接呼叫绝对路径， Makefile 的每一行编译火焰将直接泼在您的屏幕上！
         call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack"
         call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack"
         nmake
