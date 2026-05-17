@@ -125,14 +125,8 @@ jobs:
       run: |
         set "PATH=D:\depot_tools;%PATH%"
         cd /d "${{ env.PHP_SDK_ROOT }}\bin"
-        call phpsdk-vs16-x64.bat
-        cd /d D:\
-        git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
-        cd v8js
-        
-        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-        nmake
+        call phpsdk-starter.bat -c vs16 -a x64 -t cmd /c "cd /d D:\ && git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js && cd v8js && phpize --with-php-build=\"${{ env.PHP_DEV_PACK_DIR }}\" && configure --with-v8js=\"${{ env.V8_DEPS_DIR }}\" --with-php-build=\"${{ env.PHP_DEV_PACK_DIR }}\" && nmake"
+
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
