@@ -63,13 +63,20 @@ jobs:
     - name: "配置 Depot Tools"
       shell: cmd
       run: |
+        :: 【精准修复】强制写入全局配置，物理生成 .gitconfig 文件，彻底击碎 Git 128 致命阻断
+        call git config --global user.name "runner"
+        call git config --global depot-tools.allowGlobalGitConfig false
         if not exist D:\depot_tools (
-          git clone --depth=1 ${{ env.DEPOT_TOOLS_URL }} D:\depot_tools
+         git clone --depth=1 ${{ env.DEPOT_TOOLS_URL }} D:\depot_tools
         )
         set "PATH=D:\depot_tools;%PATH%"
+
         cd /d D:\
         echo solutions = [ { 'name': 'v8', 'url': '${{ env.V8_SRC_URL }}', 'deps_file': 'DEPS', 'managed': False, 'custom_deps': {}, 'custom_vars': {} } ] > .gclient
-        call gclient
+
+        :: 【精准修复】改用符合新版规范的探测命令，确保平稳触发后台编译组件下载并成功返回
+        call gclient --version
+
 
     - name: "同步 V8 源码"
       shell: cmd
