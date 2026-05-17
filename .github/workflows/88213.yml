@@ -203,41 +203,50 @@ jobs:
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
+        :: 1. 注入工具链
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        
+        :: 2. 切入 PHP 开发包主目录
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        
+        :: 3. 稳健的源码克隆与覆盖
         if not exist "ext\v8js" mkdir "ext\v8js"
         if exist "%GITHUB_WORKSPACE%\ext\v8js" (
-            echo [INFO] Syncing custom source from workspace...
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         ) else (
-            echo [INFO] Workspace source empty. Fetching from defined V8JS_EXT_URL...
             rmdir /S /Q ext\v8js
             git clone "${{ env.V8JS_EXT_URL }}" "ext\v8js"
         )
+        
+        :: 4. 物理擦除 v8js 内部由于全局扫描而引发的硬编码错误
         powershell -Command "$p = 'ext\v8js\config.w32'; $c = [System.IO.File]::ReadAllText($p); $s = $c -replace 'if\s*\(\s*typeof\(BUILD_DIR\)[^}]+}', 'INFO(\"Bypassed hardcoded directory check.\");'; [System.IO.File]::WriteAllText($p, $s)"
+        
+        :: 5. 将 ARG_ENABLE 转换为 ARG_WITH，从而激活 --with-v8-dir 参数
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
-        echo [INFO] Rebuilding configure scripts with complete source...
+        
+        :: 6. 执行 phpize.bat 生成最初步的配置（此时应该在当前目录下生成 configure.bat）
+        echo [INFO] Rebuilding configure scripts...
         call phpize.bat
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+        
+        :: 7. 在当前主目录下直接启动配置图纸生成（额外注入 BUILD_DIR 参数防止其偷偷静默退出）
         echo [INFO] Running configure.bat...
-        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
-        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-        echo [SUCCESS] 全局环境配置成功！
-
-    - name: "运行 NMAKE 编译"
-      shell: cmd
-      run: |
-        :: 1. 激活工具链与官方 SDK 变量环境
-        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
-        cd /d "${{ env.PHP_SDK_ROOT }}"
-        if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
-        if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        
-        :: 2. 回到主开发包目录直接运行 nmake 启动编译（因为配置大图纸和 Makefile 已经生成在根目录）
-        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
-        echo [INFO] 正在启动 nmake 清理与构建...
-        nmake clean
-        nmake
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no "BUILD_DIR=release"
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        echo [SUCCESS] php_v8js.dll 二进制扩展编译全流程顺利完成！
+        :: 8. 【核心关键诊断】检查当前目录下是否存在 Makefile 
+        if exist "Makefile" (
+            echo [SUCCESS] Makefile 成功在主开发包目录生成！
+            exit /b 0
+        )
+        
+        :: 9. 【自动捕获纠偏】如果主目录没有，检查它是否被错吐到了扩展目录里
+        if exist "ext\v8js\Makefile" (
+            echo [WARN] 发现 Makefile 被错吐到了扩展目录，正在将其修正移动到主目录...
+            move /Y "ext\v8js\Makefile" "Makefile"
+            exit /b 0
+        )
+        
+        :: 10. 【强熔断断言】如果两处都没有，说明 configure 触发了静默崩溃，必须在此强行阻断
+        echo 【致命错误】configure.bat 未能成功生成 Makefile 构建图纸！请仔细检查上方配置检测日志！
+        exit /b 1
