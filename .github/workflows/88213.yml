@@ -49,7 +49,7 @@ jobs:
         path: |
           depot_tools
           v8
-        key: v8-build-cache-${{ runner.os }}-${{ env.PHP_ZIP_FILE_NAME }}
+        key: v8-build-cache-${{ runner.os }}-v1
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
 
