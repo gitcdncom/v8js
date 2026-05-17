@@ -272,6 +272,16 @@ jobs:
         cd /d "${{ env.PHP_SDK_ROOT }}"
         if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
         if exist phpsdk_setvars.bat call phpsdk_setvars.bat
-        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+
+        :: 强行切入大图纸所在的物理主目录
+        cd /d "C:\php-sdk\php-dev-pack"
+
+        :: 终极加固：如果当前目录没有，强行去 ext\v8js 里也捞一遍，双重保险
+        if not exist "Makefile" if exist "ext\v8js\Makefile" move /Y "ext\v8js\Makefile" "Makefile"
+
+        echo [INFO] 正在启动 nmake 清理与构建...
         nmake clean
         nmake
+        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+        echo [SUCCESS] php_v8js.dll 编译成功！
+
