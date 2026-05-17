@@ -206,5 +206,5 @@ jobs:
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
-        call buildconf.bat --force
-        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        call "${{ env.PHP_SDK_ROOT }}\buildconf.bat" --force
+        call "${{ env.PHP_SDK_ROOT }}\configure.bat" --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
