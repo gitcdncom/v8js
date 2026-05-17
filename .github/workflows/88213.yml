@@ -49,6 +49,8 @@ jobs:
         path: |
           D:\depot_tools
           D:\v8
+          # D:\.gclient
+          # D:\.gclient_entries
         key: v8-build-cache-${{ runner.os }}-v1
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
