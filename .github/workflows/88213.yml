@@ -212,21 +212,23 @@ jobs:
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         )
         
-        :: 3. 转换参数（将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数）
+        :: 3. 【核心修正】用绝对路径锁定主开发包目录，防止相对路径层级算错
+        set "MAIN_PACK_DIR=%CD%"
+        
+        :: 4. 转换参数（将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数）
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         
-        :: 4. 在当前主目录执行 phpize.bat，确保完美生成所有的构建基准配置
+        :: 5. 在当前主目录执行 phpize.bat，确保完美生成所有的构建基准配置
         call phpize.bat
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        :: 5. 【核心路径修正】切入包含 config.w32 文件的扩展源码根目录
+        :: 6. 切入包含 config.w32 文件的扩展源码根目录
         cd /d "ext\v8js"
         echo [INFO] 当前执行配置的工作目录已切入: %CD%
         
-        :: 6. 在扩展根目录下，通过相对路径反向唤醒上级的 configure.bat
-        :: 移除引发死锁的 --with-ext-dir，因为当前工作目录就是扩展根目录，它会自动闭嘴
+        :: 7. 【核心修正】使用绝对路径精准调用上级的 configure.bat
         echo [INFO] 开始在扩展源码根目录运行配置...
-        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        call "%MAIN_PACK_DIR%\configure.bat" --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
         echo [SUCCESS] 配置生成成功！
