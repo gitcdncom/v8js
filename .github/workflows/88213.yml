@@ -124,9 +124,15 @@ jobs:
       shell: cmd
       run: |
         set "PATH=D:\depot_tools;%PATH%"
-        cd /d "${{ env.PHP_SDK_ROOT }}\bin"
-        call phpsdk-starter.bat -c vs16 -a x64 -t cmd /c "cd /d D:\ && git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js && cd v8js && phpize --with-php-build=\"${{ env.PHP_DEV_PACK_DIR }}\" && configure --with-v8js=\"${{ env.V8_DEPS_DIR }}\" --with-php-build=\"${{ env.PHP_DEV_PACK_DIR }}\" && nmake"
 
+        :: 1. 先在普通的顶层环境下完成克隆，彻底脱离路径和命令转义的深坑
+        cd /d D:\
+        if exist v8js rd /s /q v8js
+        git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
+        cd v8js
+
+        :: 2. 【终极对齐修复】直接在 v8js 源码目录下就地调用 starter 激活环境，并通过 && 瞬间顺序执行后续编译！
+        call "${{ env.PHP_SDK_ROOT }}\bin\phpsdk-starter.bat" -c vs16 -a x64 && phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" && configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" && nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
