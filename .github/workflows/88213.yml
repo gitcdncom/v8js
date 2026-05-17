@@ -200,29 +200,28 @@ jobs:
         git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
 
     # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
-    # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
     - name: "配置并编译 PHP V8Js 扩展"
       shell: cmd
       run: |
         :: 1. 全局环境变量与 SDK 路径注入
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_DEV_PACK_DIR }};%PATH%"
         
-        :: 2. 核心自愈：修正源码路径。如果之前没克隆好，原地重新克隆确保源码 100% 存在
+        :: 2. 确保扩展源码 100% 存在于 ext\v8js 目录
         if not exist "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js\.git" (
             if exist "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js" rmdir /S /Q "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js"
             git clone "${{ env.V8JS_EXT_URL }}" "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js"
         )
 
-        :: 3. 切换到【扩展源码根目录】执行 W32 参数修正与 phpize (解决 Must be run from 报错)
+        :: 3. 切换到扩展源码目录执行配置修正与 phpize
         cd /d "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js"
         powershell -Command "(Get-Content 'config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'config.w32'"
-        call phpize.bat
+        call phpize.bat || exit 1
 
-        :: 4. 切换回【PHP 开发包根目录】进行全局交叉配置与编译
+        :: 4. 切换回 PHP 开发包根目录
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         
-        :: Windows 官方标准参数：--with-v8js 指向依赖库根目录，PHP 会自动寻找其下的 include 和 lib
-        call configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --enable-v8js=shared --enable-debug=no || exit 1
+        :: 【核心修复】Windows PHP 编译不使用 configure.bat，而是直接调用 configure 命令或 cscript
+        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --enable-v8js=shared --disable-debug-pack || exit 1
         
         :: 5. 启动多线程编译
         nmake || exit 1
