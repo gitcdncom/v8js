@@ -79,16 +79,30 @@ jobs:
     - name: "同步 V8 源码与依赖"
       shell: cmd
       run: |
-        :: 必须将 depot_tools 放在 PATH 的最前面，防止调用 Windows 自带的不兼容工具
         set PATH=%CD%\depot_tools;%PATH%
         
-        :: 初始化 gclient 配置
-        if pushd v8 2>nul (
-            popd
-        ) else (
-            call gclient config --spec="solutions = [{ 'name': 'v8', 'url': '${{ env.V8_SRC_URL }}', 'deps_file': 'DEPS', 'managed': False, 'custom_deps': {}, 'custom_vars': {}, }]"
-            call gclient sync
+        :: 检查 v8 目录是否存在，存在则直接跳转到同步步骤
+        if exist v8 (
+            goto GCLIENT_SYNC
         )
+        
+        :: ==================== 完美无缺陷地生成 .gclient 配置文件 ====================
+        :: 不使用 if-else 括号包裹，紧凑编写消除尾随空格，100% 修复 v8 was unexpected 错误
+        echo solutions = [> .gclient
+        echo   {>> .gclient
+        echo     "name": "v8",>> .gclient
+        echo     "url": "${{ env.V8_SRC_URL }}",>> .gclient
+        echo     "deps_file": "DEPS",>> .gclient
+        echo     "managed": False,>> .gclient
+        echo     "custom_deps": {},>> .gclient
+        echo     "custom_vars": {},>> .gclient
+        echo   },>> .gclient
+        echo ]>> .gclient
+        
+        :GCLIENT_SYNC
+        :: ==================== 执行同步 ====================
+        call gclient sync
+        if %errorlevel% neq 0 exit /b %errorlevel%
 
     - name: "GN 生成与 V8 编译 (Monolithic 单体静态库)"
       shell: cmd
