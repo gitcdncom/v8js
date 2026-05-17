@@ -110,7 +110,7 @@ jobs:
         curl -Lo "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}" "${{ env.PHP_DEVEL_PACK_URL }}"
         powershell -Command "Expand-Archive -Path '${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath '${{ env.PHP_DEV_PACK_DIR }}' -Force"
         
-        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}"
 
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
