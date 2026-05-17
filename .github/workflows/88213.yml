@@ -103,3 +103,77 @@ jobs:
         :: ==================== 执行同步 ====================
         call gclient sync
         if %errorlevel% neq 0 exit /b %errorlevel%
+
+    - name: "GN 生成与 V8 编译 (Monolithic 单体静态库)"
+      shell: cmd
+      run: |
+        set PATH=%CD%\depot_tools;%PATH%
+        cd v8
+        
+        :: 完美注入你指定的 GN 编译参数，并强制指定当前环境的视觉工作室路径
+        call gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\""
+        if %errorlevel% neq 0 exit /b %errorlevel%
+        
+        :: 执行编译，生成 v8_monolith.lib
+        call ninja -C out.gn/x64.release v8_monolithic
+        if %errorlevel% neq 0 exit /b %errorlevel%
+
+    - name: "提取 V8 编译产物到独立依赖目录"
+      shell: powershell
+      run: |
+        # 创建标准的第三方库目录结构供 PHP 扩展寻找
+        New-Item -ItemType Directory -Force "${{ env.V8_DEPS_DIR }}\lib"
+        New-Item -ItemType Directory -Force "${{ env.V8_DEPS_DIR }}\include"
+        
+        # 复制静态库
+        Copy-Item -Path "v8\out.gn\x64.release\obj\v8_monolith.lib" -Destination "${{ env.V8_DEPS_DIR }}\lib\" -Force
+        
+        # 递归复制头文件
+        Copy-Item -Path "v8\include\*" -Destination "${{ env.V8_DEPS_DIR }}\include\" -Recurse -Force
+
+    - name: "构建 PHP SDK 编译环境"
+      shell: powershell
+      run: |
+        # 创建 SDK 目录并下载官方 PHP 开发者包
+        New-Item -ItemType Directory -Force "${{ env.PHP_SDK_ROOT }}"
+        New-Item -ItemType Directory -Force "${{ env.PHP_DEV_PACK_DIR }}"
+        
+        Invoke-WebRequest -Uri "${{ env.PHP_DEVEL_PACK_URL }}" -OutFile "${{ env.PHP_SDK_ROOT }}\${{ env.PHP_ZIP_FILE_NAME }}"
+        Expand-Archive -Path "${{ env.PHP_SDK_ROOT }}\${{ env.PHP_ZIP_FILE_NAME }}" -DestinationPath "${{ env.PHP_SDK_ROOT }}\temp_pack" -Force
+        
+        # 规范化移动到配置目录
+        Move-Item -Path "${{ env.PHP_SDK_ROOT }}\temp_pack\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}\*" -Destination "${{ env.PHP_DEV_PACK_DIR }}" -Force
+        
+        # 克隆 php-sdk-binary-tools 辅助工具
+        git clone ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\php-sdk-binary-tools"
+
+    - name: "下载并编译 v8js PHP 扩展"
+      shell: cmd
+      run: |
+        :: 切换到 PHP 开发包根目录
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        
+        :: 克隆 v8js 扩展源码到 ext 目录
+        if not exist ext\v8js git clone ${{ env.V8JS_EXT_URL }} ext\v8js
+        
+        :: 运行 PHP 官方 SDK 的环境初始化
+        call "${{ env.PHP_SDK_ROOT }}\php-sdk-binary-tools\phpsdk-vc15-x64.bat"
+        
+        :: 执行构建准备
+        call buildconf.bat
+        
+        :: 配置编译参数：指向我们刚刚编译好的 V8 静态库目录
+        call configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --with-mp=all
+        if %errorlevel% neq 0 exit /b %errorlevel%
+        
+        :: 执行最终扩展编译
+        nmake
+        if %errorlevel% neq 0 exit /b %errorlevel%
+
+    - name: "收集并上传生成的 php_v8js.dll"
+      uses: actions/upload-artifact@v4
+      with:
+        name: php_v8js-dll-x64
+        path: |
+          ${{ env.PHP_DEV_PACK_DIR }}\x64\Release*\php_v8js.dll
+        retention-days: 7
