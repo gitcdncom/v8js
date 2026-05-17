@@ -47,8 +47,8 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          depot_tools
-          v8
+          D:\depot_tools
+          D:\v8
         key: v8-build-cache-${{ runner.os }}-v1
         restore-keys: |
           v8-build-cache-${{ runner.os }}-
@@ -63,20 +63,21 @@ jobs:
     - name: "配置 Depot Tools"
       shell: cmd
       run: |
-        if not exist depot_tools (
-          git clone --depth=1 ${{ env.DEPOT_TOOLS_URL }} depot_tools
+        if not exist D:\depot_tools (
+          git clone --depth=1 ${{ env.DEPOT_TOOLS_URL }} D:\depot_tools
         )
-        set "PATH=%CD%\depot_tools;%PATH%"
+        set "PATH=D:\depot_tools;%PATH%"
         call gclient
 
     - name: "同步 V8 源码"
       shell: cmd
       run: |
-        set "PATH=%CD%\depot_tools;%PATH%"
-        if not exist v8 (
+        set "PATH=D:\depot_tools;%PATH%"
+        if not exist D:\v8 (
+          cd /d D:\
           call fetch v8
         )
-        cd v8
+        cd /d D:\v8
         call git fetch origin
         call git checkout lkgr
         call gclient sync
@@ -84,18 +85,18 @@ jobs:
     - name: "编译 V8 引擎静态库"
       shell: cmd
       run: |
-        set "PATH=%CD%\depot_tools;%PATH%"
-        cd v8
+        set "PATH=D:\depot_tools;%PATH%"
+        cd /d D:\v8
         call gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\""
         call ninja -C out.gn/x64.release v8_monolithic
 
     - name: "提取并组织 V8 编译产物"
       shell: cmd
       run: |
-        mkdir "${{ env.V8_DEPS_DIR }}\include"
-        mkdir "${{ env.V8_DEPS_DIR }}\lib"
-        xcopy /E /I /Y "v8\include" "${{ env.V8_DEPS_DIR }}\include"
-        xcopy /Y "v8\out.gn\x64.release\obj\v8_monolithic.lib" "${{ env.V8_DEPS_DIR }}\lib\"
+        if not exist "${{ env.V8_DEPS_DIR }}\include" mkdir "${{ env.V8_DEPS_DIR }}\include"
+        if not exist "${{ env.V8_DEPS_DIR }}\lib" mkdir "${{ env.V8_DEPS_DIR }}\lib"
+        xcopy /E /I /Y "D:\v8\include" "${{ env.V8_DEPS_DIR }}\include"
+        xcopy /Y "D:\v8\out.gn\x64.release\obj\v8_monolithic.lib" "${{ env.V8_DEPS_DIR }}\lib\"
 
     - name: "配置 PHP SDK 环境与安装包"
       shell: cmd
@@ -112,9 +113,10 @@ jobs:
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
       run: |
-        set "PATH=%CD%\depot_tools;%PATH%"
+        set "PATH=D:\depot_tools;%PATH%"
         call "${{ env.PHP_SDK_ROOT }}\bin\php-sdk-vc15-x64.bat"
         
+        cd /d D:\
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
         
@@ -123,7 +125,7 @@ jobs:
         nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
-      uses: actions/artifacts@v4
+      uses: actions/upload-artifact@v4
       with:
         name: php_v8js-dll
-        path: v8js\x64\Release\php_v8js.dll
+        path: D:\v8js\x64\Release*\*
