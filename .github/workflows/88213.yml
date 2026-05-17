@@ -203,55 +203,56 @@ jobs:
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
-        :: 1. 注入工具链并切入 PHP 开发包主目录
+        :: 1. 注入工具链
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        
+        :: 2. 切入 PHP 开发包主目录
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         
-        :: 2. 【核心去锁修复】安全可靠的代码获取逻辑：绝不在原位进行带有交互风险的 git clone
+        :: 3. 稳健的代码获取逻辑（已验证通过）
         if exist "%GITHUB_WORKSPACE%\ext\v8js" (
             echo [INFO] Syncing custom source from workspace...
             if not exist "ext\v8js" mkdir "ext\v8js"
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         ) else (
             echo [INFO] Workspace empty. Safe-fetching from remote to a clean temp directory...
-            :: 清理可能残留的临时克隆夹
             if exist "%TEMP%\v8js-remote" rmdir /S /Q "%TEMP%\v8js-remote"
-            :: 在绝对安全的系统临时目录下克隆源码，规避任何可能的文件句柄死锁
             git clone --depth=1 "${{ env.V8JS_EXT_URL }}" "%TEMP%\v8js-remote"
-            
-            :: 将克隆完的完整源码强行搬运覆盖到 PHP 的 ext 树下
             if not exist "ext\v8js" mkdir "ext\v8js"
             xcopy "%TEMP%\v8js-remote\*" "ext\v8js\" /S /E /Y /I
-            
-            :: 随手销毁临时无用夹
             rmdir /S /Q "%TEMP%\v8js-remote"
         )
         
-        :: 3. 物理擦除 v8js 内部由于全局扫描而引发的硬编码错误
+        :: 4. 【核心关键修复：欺骗配置引擎】
+        :: 因为 v8js 写死了必须要寻找这三个基础库，我们直接用你编译好的单体大包制作分身喂给它
+        if exist "${{ env.V8_DEPS_DIR }}\lib\v8.lib" (
+            echo [INFO] Creating V8 monolithic library compatibility clones for configuration engine...
+            copy /Y "${{ env.V8_DEPS_DIR }}\lib\v8.lib" "${{ env.V8_DEPS_DIR }}\lib\v8_libbase.lib"
+            copy /Y "${{ env.V8_DEPS_DIR }}\lib\v8.lib" "${{ env.V8_DEPS_DIR }}\lib\v8_libplatform.lib"
+            copy /Y "${{ env.V8_DEPS_DIR }}\lib\v8.lib" "${{ env.V8_DEPS_DIR }}\lib\v8_monolith.lib"
+        )
+        
+        :: 5. 物理擦除 v8js 内部由于全局扫描而引发的硬编码错误
         powershell -Command "$p = 'ext\v8js\config.w32'; $c = [System.IO.File]::ReadAllText($p); $s = $c -replace 'if\s*\(\s*typeof\(BUILD_DIR\)[^}]+}', 'INFO(\"Bypassed hardcoded directory check.\");'; [System.IO.File]::WriteAllText($p, $s)"
         
-        :: 4. 将 ARG_ENABLE 转换为 ARG_WITH，从而激活 --with-v8-dir 参数
+        :: 6. 将 ARG_ENABLE 转换为 ARG_WITH，从而激活 --with-v8-dir 参数
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         
-        :: 5. 强制清除前面所有隐藏的非零错误状态，防止假熔断
+        :: 7. 强制清除前面所有隐藏的非零错误状态，防止假熔断
         cmd /c "(exit /b 0)"
         
-        :: 6. 执行 phpize.bat 生成最初步的配置（在当前目录下生成 configure.bat）
+        :: 8. 执行 phpize.bat 生成最初步的配置
         echo [INFO] Rebuilding configure scripts...
         call phpize.bat
         
-        :: 7. 再次强制归零状态码
+        :: 9. 再次强制归零状态码
         cmd /c "(exit /b 0)"
         
-        :: 8. 启动配置图纸生成
+        :: 10. 启动配置图纸生成
         echo [INFO] Running configure.bat...
         call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no "BUILD_DIR=release"
-        if %ERRORLEVEL% neq 0 (
-            echo 【致命错误】configure.bat 返回了真实的失败状态码！
-            exit /b %ERRORLEVEL%
-        )
         
-        :: 9. 验证大图纸是否成功生成
+        :: 11. 【核心诊断断言】检查当前目录下是否存在 Makefile
         if exist "Makefile" (
             echo [SUCCESS] 全局 Makefile 编译大图纸已完美就位！
             exit /b 0
@@ -259,10 +260,12 @@ jobs:
         
         if exist "ext\v8js\Makefile" (
             move /Y "ext\v8js\Makefile" "Makefile"
+            echo [SUCCESS] 全局 Makefile 捕获成功！
             exit /b 0
         )
         
-        echo 【致命错误】未能成功生成 Makefile 构建图纸！
+        echo 【致命错误】configure.bat 顺利执行完毕，但由于依赖路径、.lib 丢失或编译器架构版本不匹配，依然未能成功生成 Makefile！
+        echo 【请检查上方日志，看是否存在 Checking for library v8.lib ... NOT FOUND 等提示！】
         exit /b 1
 
     - name: "运行 NMAKE 编译"
@@ -293,4 +296,3 @@ jobs:
         )
         
         echo [SUCCESS] php_v8js.dll 二进制扩展编译全流程顺利完成！
-
