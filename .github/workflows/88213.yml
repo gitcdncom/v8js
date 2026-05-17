@@ -131,7 +131,7 @@ jobs:
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
         :: is_custom_libcxx=false use_custom_libcxx=false visual_studio_version="2019" v8_enable_sandbox
-        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\"" || exit 1
+        call gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\"" || exit 1
         ninja -C out.gn\x64.release v8_monolith || exit 1
 
     - name: "安装 PHP-SDK 并拉取 PHP 开发包"
