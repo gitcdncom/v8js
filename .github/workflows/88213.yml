@@ -140,7 +140,7 @@ jobs:
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
         
-        :: 【硬核手写爆破图纸】绕过会触发 cscript 死锁的 phpize.bat 和 configure，直接原地绘制绝对咬合的 Makefile！
+        :: 亲手绘制绝对咬合的 Makefile 施工图纸，剥离一切会死锁挂起的 cscript/configure 外壳
         echo CC=cl > Makefile
         echo LD=link >> Makefile
         echo CFLAGS=/nologo /MD /O2 /I"D:\php-sdk\php-dev-pack\php-devel-pack\include" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\main" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\Zend" /I"D:\v8-deps\include" /D"PHP_WIN32" /D"ZEND_WIN32" /D"COMPILE_DL_V8JS" /D"ZTS=1" >> Makefile
@@ -161,7 +161,7 @@ jobs:
         echo .cpp.obj: >> Makefile
         echo 	$(CC) $(CFLAGS) /c $^< >> Makefile
         
-        :: 彻底消除中介黑盒，让微软主编译器直接开轰，所有的输出结果这次将瞬间全屏展示！
+        :: 微软主编译器直接开轰
         nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
