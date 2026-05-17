@@ -214,21 +214,18 @@ jobs:
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         )
         
-        :: 4. 【终极核心修复】用模糊文本替换，直接把包含 "Must be run" 的整行及前后大括号彻底蒸发
-        :: 不论它源码里怎么写换行和空格，只要遇到这几个词，直接物理切除，替换为无害的打印
-        powershell -Command "$p = 'ext\v8js\config.w32'; $c = [System.IO.File]::ReadAllText($p); $s = [regex]::Replace($c, 'if\s*\(\s*typeof\(BUILD_DIR\)[^}]+}', 'INFO(\"Bypassed hardcoded directory check.\");'); [System.IO.File]::WriteAllText($p, $s)"
-        
-        :: 5. 将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数
+        :: 4. 仅保留最基础的参数名称转换（将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数）
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         
-        :: 6. 执行你验证过可行的 phpize 命令（在当前目录下顺利生成 configure.bat）
+        :: 5. 执行你验证过可行的 phpize 命令（在当前目录下顺利生成 configure.bat）
         echo [INFO] Rebuilding configure scripts...
         call phpize.bat
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        :: 7. 去掉 --with-ext-dir 参数，直接进行全树链接
-        echo [INFO] Running configure.bat...
-        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        :: 6. 【终极核心修复】在运行 configure.bat 时，直接在命令行末尾强行注入 BUILD_DIR 赋值！
+        :: 这样 v8js 内部检测 typeof(BUILD_DIR) 时会拿到 "release" 从而完美跳过硬编码的 ERROR 熔断！
+        echo [INFO] Running configure.bat with force-injected variables...
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no "BUILD_DIR=release"
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
         echo [SUCCESS] configure.bat 成功执行，全局环境配置完成！
