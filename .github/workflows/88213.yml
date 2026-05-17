@@ -69,6 +69,7 @@ jobs:
         if not exist D:\depot_tools (
          git clone --depth=1 ${{ env.DEPOT_TOOLS_URL }} D:\depot_tools
         )
+        set DEPOT_TOOLS_UPDATE=0
         set "PATH=D:\depot_tools;%PATH%"
 
         cd /d D:\
