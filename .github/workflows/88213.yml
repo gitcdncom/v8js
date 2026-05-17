@@ -198,3 +198,16 @@ jobs:
         if not exist ext mkdir ext
         if exist ext\v8js rmdir /S /Q ext\v8js
         git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
+
+    # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
+    - name: "配置 PHP 编译环境"
+      shell: cmd
+      run: |
+        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        powershell -Command "(Get-Content '${{ env.PHP_DEV_PACK_DIR }}\ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content '${{ env.PHP_DEV_PACK_DIR }}\ext\v8js\config.w32'"
+        cd /d "${{ env.PHP_SDK_ROOT }}"
+        if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
+        if exist phpsdk_setvars.bat call phpsdk_setvars.bat
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        call buildconf.bat --force
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
