@@ -212,31 +212,34 @@ jobs:
             exit /b 1
         )
         
-        :: 3. 【终极降维打击】直接用 PowerShell 读取文件并彻底抹除那行不讲理的 ERROR 判定
-        :: 无论它有多少换行或空格，直接将整个 Must be run... 的报错判定替换为安全提示
+        :: 3. 强行抹除 v8js 内部不兼容 Windows 全局编译的硬编码报错检测
         powershell -Command "$c = [System.IO.File]::ReadAllText('ext\v8js\config.w32'); $s = [regex]::Replace($c, 'ERROR\(\s*\"Must be run from the root of the extension source\"\s*\);', 'INFO(\"Bypassed directory check.\");'); [System.IO.File]::WriteAllText('ext\v8js\config.w32', $s)"
         
-        :: 4. 执行原定的参数转换（将 ARG_ENABLE 改为 ARG_WITH 从而激活 --with-v8-dir）
+        :: 4. 执行参数转换（将 ARG_ENABLE 改为 ARG_WITH 从而激活 --with-v8-dir）
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         
-        :: 5. 先切入扩展目录，以扩展的身份触发上级 phpize（建立 Windows 符号树桩）
-        cd /d "C:\php-sdk\php-dev-pack\ext\v8js"
-        echo [INFO] Rebuilding global configure scripts...
-        call ..\..\phpize.bat
+        :: 5. 【核心修正】直接在根目录下运行 call phpize.bat 
+        :: 不要切换到 ext\v8js！直接在主目录下高呼 phpize！
+        :: 这会触发全局扫描机制，把 ext\v8js 绑定为原生组件，并百分之百在当前目录下吐出 configure.bat
+        echo [INFO] Rebuilding global configure scripts to generate configure.bat...
+        call phpize.bat
         if %ERRORLEVEL% neq 0 (
-            echo [FATAL ERROR] phpize failed!
+            echo [FATAL ERROR] phpize failed to generate configuration files!
             exit /b %ERRORLEVEL%
         )
         
-        :: 6. 【关键铁律】必须立即退回 PHP SDK 开发包主目录，在此处才能全局 configure
-        cd /d "C:\php-sdk\php-dev-pack"
+        :: 6. 安全断言：检查 configure.bat 是否成功生成
+        if not exist "configure.bat" (
+            echo 【致命错误】phpize 执行完毕，但依然未能成功生成 configure.bat 文件！
+            exit /b 1
+        )
         
-        :: 7. 启动链接配置，彻底去掉 --with-ext-dir
-        echo [INFO] Running configure for v8js...
+        :: 7. 此时 configure.bat 已 100% 存在，放心大胆地调用它
+        echo [INFO] Running configure.bat for v8js...
         call configure.bat --with-v8js=shared --with-v8-dir="D:\v8-deps" --enable-debug=no
         if %ERRORLEVEL% neq 0 (
-            echo [FATAL ERROR] configure.bat failed!
+            echo [FATAL ERROR] configure.bat compilation diagram generation failed!
             exit /b %ERRORLEVEL%
         )
         
-        echo [SUCCESS] 全局环境配置成功！
+        echo [SUCCESS] configure.bat 成功执行，全局环境配置完成！
