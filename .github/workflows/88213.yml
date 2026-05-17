@@ -203,25 +203,30 @@ jobs:
     - name: "配置并编译 PHP V8Js 扩展"
       shell: cmd
       run: |
-        :: 1. 全局环境变量与 SDK 路径注入
+        :: 1. 注入 SDK 核心工具链与开发包路径到系统变量
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_DEV_PACK_DIR }};%PATH%"
         
-        :: 2. 确保扩展源码 100% 存在于 ext\v8js 目录
+        :: 2. 检查并确保 v8js 源码 100% 存在
         if not exist "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js\.git" (
             if exist "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js" rmdir /S /Q "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js"
             git clone "${{ env.V8JS_EXT_URL }}" "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js"
         )
 
-        :: 3. 切换到扩展源码目录执行配置修正与 phpize
+        :: 3. 【关键修复】切换到扩展源码根目录
         cd /d "${{ env.PHP_DEV_PACK_DIR }}\ext\v8js"
+        
+        :: 4. 修正 W32 编译宏
         powershell -Command "(Get-Content 'config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'config.w32'"
-        call phpize.bat || exit 1
+        
+        :: 5. 【核心修复】跨目录调用开发包根目录下的 phpize.bat
+        :: 这样 phpize 就会在当前 ext\v8js 目录下顺利扎根并把编译图纸（configure.js）吐回到 php-dev-pack 根目录中
+        call "${{ env.PHP_DEV_PACK_DIR }}\phpize.bat" || exit 1
 
-        :: 4. 切换回 PHP 开发包根目录
+        :: 6. 切换回 PHP 开发包根目录（此时 configure.js 已就绪）
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         
-        :: 【核心修复】Windows PHP 编译不使用 configure.bat，而是直接调用 configure 命令或 cscript
+        :: 7. 调用配置命令（去掉 .bat，直接通过 Windows 宿主运行生成的 configure 脚本）
         call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --enable-v8js=shared --disable-debug-pack || exit 1
         
-        :: 5. 启动多线程编译
+        :: 8. 启动微软工具链多线程编译
         nmake || exit 1
