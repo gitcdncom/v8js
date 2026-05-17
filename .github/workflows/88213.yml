@@ -199,14 +199,16 @@ jobs:
         if exist ext\v8js rmdir /S /Q ext\v8js
         git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
 
+    # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         if not exist "ext\v8js" mkdir "ext\v8js"
-        (echo \depot_tools\ & echo \v8-build\ & echo \.git\) > "%TEMP%\exclude.txt"
-        xcopy "%GITHUB_WORKSPACE%\*" "ext\v8js\\" /S /E /Y /I /EXCLUDE:%TEMP%\exclude.txt
+        copy /Y "%GITHUB_WORKSPACE%\config.w32" "ext\v8js\"
+        xcopy "%GITHUB_WORKSPACE%\*.cc" "ext\v8js\" /Y /I
+        xcopy "%GITHUB_WORKSPACE%\*.h" "ext\v8js\" /Y /I
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         call phpize.bat --extdir=ext\v8js
         call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
