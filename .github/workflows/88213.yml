@@ -199,29 +199,14 @@ jobs:
         if exist ext\v8js rmdir /S /Q ext\v8js
         git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
 
-    # 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
+# 将设置变量与构建脚本合并在单步骤的同一个上下文执行，避免环境变量在步骤间丢失
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
-        :: 1. 注入 SDK 工具链路径
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
-        
-        :: 2. 切换到开发包目录（确保基础骨架完整）
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
         if not exist "ext\v8js" mkdir "ext\v8js"
-        
-        :: 【核心修复 1】由于源码已经在此前的 Step 默认克隆到了当前目录下的 ext\v8js 中，
-        :: 我们把从 GITHUB_WORKSPACE 复制的死路径，改为从当前已存在的源码目录中安全自复制（解决 File not found）
-        if exist "ext\v8js\.git" xcopy "ext\v8js\*" "ext\v8js\\" /S /E /Y /I
-        
-        :: 3. 修正扩展的编译配置文件宏
+        xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\\" /S /E /Y /I
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
-        
-        :: 【核心修复 2】切换进扩展源码根目录执行 phpize.bat（彻底剥离并解决 Must be run from 报错）
-        cd ext\v8js
-        call ..\..\phpize.bat
-        
-        :: 【核心修复 3】切回开发包目录，运行 phpize 生成的 configure 脚本（去掉错误的 .bat 后缀，改为官方标准名称）
-        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
-        call configure --with-ext-dir=ext\v8js --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
-
+        call phpize.bat --extdir=ext\v8js
+        call configure.bat --with-ext-dir=ext\v8js --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
