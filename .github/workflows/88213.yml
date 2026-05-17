@@ -22,7 +22,7 @@ env:
   # 3. 全局本地公共目录定义
   # 注意：在 GitHub Actions Windows 节点中，D 盘空间通常比 C 盘更充裕，建议拉取和编译均在 D 盘进行
   PHP_SDK_ROOT: "D:\\php-sdk"
-  PHP_DEV_PACK_DIR: "D:\\php-sdk\\php-dev-pack"
+  PHP_DEV_PACK_DIR: "D:\\php-sdk\\php-devel-pack"
   V8_DEPS_DIR: "D:\\v8-deps"
   
   # Depot Tools 依赖的环境变量
@@ -110,7 +110,7 @@ jobs:
         curl -Lo "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}" "${{ env.PHP_DEVEL_PACK_URL }}"
         powershell -Command "Expand-Archive -Path '${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath '${{ env.PHP_DEV_PACK_DIR }}' -Force"
         
-        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        move "${{ env.PHP_DEV_PACK_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}"
 
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
@@ -122,8 +122,8 @@ jobs:
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
         
-        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
-        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
