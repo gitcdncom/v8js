@@ -202,33 +202,45 @@ jobs:
     - name: "配置 PHP 编译环境"
       shell: cmd
       run: |
-        :: 1. 注入工具链
+        :: 1. 注入工具链并切入 PHP 开发包主目录
         set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
-        
-        :: 2. 切入 PHP 开发包主目录并同步源码
         cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        
+        :: 2. 同步您的源码
         if not exist "ext\v8js" mkdir "ext\v8js"
         if exist "%GITHUB_WORKSPACE%\ext\v8js" (
             xcopy "%GITHUB_WORKSPACE%\ext\v8js\*" "ext\v8js\" /S /E /Y /I
         )
         
-        :: 3. 【核心修正】用绝对路径锁定主开发包目录，防止相对路径层级算错
-        set "MAIN_PACK_DIR=%CD%"
-        
-        :: 4. 转换参数（将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数）
+        :: 3. 转换参数（将 ARG_ENABLE 改为 ARG_WITH，从而激活 --with-v8-dir 参数）
         powershell -Command "(Get-Content 'ext\v8js\config.w32') -replace 'ARG_ENABLE', 'ARG_WITH' | Set-Content 'ext\v8js\config.w32'"
         
-        :: 5. 在当前主目录执行 phpize.bat，确保完美生成所有的构建基准配置
+        :: 4. 执行 phpize.bat，在当前主目录下顺利生成全局构建配置文件（configure.js / configure.bat）
+        echo [INFO] Rebuilding configure scripts...
         call phpize.bat
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         
-        :: 6. 切入包含 config.w32 文件的扩展源码根目录
-        cd /d "ext\v8js"
-        echo [INFO] 当前执行配置的工作目录已切入: %CD%
+        :: 5. 【核心黑魔法：路径与上下文双重欺骗】
+        :: 备份主目录原有的 config.w32（如果存在），然后将 v8js 的 config.w32 临时复制到主目录下
+        :: 这样当 configure 扫描主目录时，v8js 会认为自己就处于主目录（即它眼中的 Extension Root）
+        if exist "config.w32" move /Y "config.w32" "config.w32.bak"
+        copy /Y "ext\v8js\config.w32" "config.w32"
         
-        :: 7. 【核心修正】使用绝对路径精准调用上级的 configure.bat
-        echo [INFO] 开始在扩展源码根目录运行配置...
-        call "%MAIN_PACK_DIR%\configure.bat" --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
-        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+        :: 6. 放心大胆地在当前主目录下直接呼叫 configure.bat
+        :: 此时工作目录在主目录，configure.bat 能够 100% 找到 configure.js
+        :: 同时 v8js 发现当前目录下有自己的 config.w32，误以为自己就是 Root，硬编码报错直接闭嘴！
+        echo [INFO] 正在主目录下安全启动配置链接...
+        call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
+        set "CONFIG_ERR=%ERRORLEVEL%"
         
-        echo [SUCCESS] 配置生成成功！
+        :: 7. 【环境复原】无论配置成功与否，强行把刚刚挪动的文件还原，确保不污染后续的 nmake 编译
+        del /F /Q "config.w32"
+        if exist "config.w32.bak" move /Y "config.w32.bak" "config.w32"
+        
+        :: 8. 检查第 6 步的配置结果，如果失败则熔断
+        if %CONFIG_ERR% neq 0 (
+            echo [FATAL ERROR] configure.bat failed!
+            exit /b %CONFIG_ERR%
+        )
+        
+        echo [SUCCESS] 绕过 Windows 底层路径限制，配置图纸全部生成成功！
