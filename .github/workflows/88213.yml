@@ -87,8 +87,8 @@ jobs:
       run: |
         set "PATH=D:\depot_tools;%PATH%"
         cd /d D:\v8
-        call gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\""
-        call ninja -C out.gn/x64.release v8_monolithic
+        call gn gen out.gn/x64.release --args="v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\""
+        call ninja -C out.gn/x64.release v8_monolith
 
     - name: "提取并组织 V8 编译产物"
       shell: cmd
@@ -96,7 +96,7 @@ jobs:
         if not exist "${{ env.V8_DEPS_DIR }}\include" mkdir "${{ env.V8_DEPS_DIR }}\include"
         if not exist "${{ env.V8_DEPS_DIR }}\lib" mkdir "${{ env.V8_DEPS_DIR }}\lib"
         xcopy /E /I /Y "D:\v8\include" "${{ env.V8_DEPS_DIR }}\include"
-        xcopy /Y "D:\v8\out.gn\x64.release\obj\v8_monolithic.lib" "${{ env.V8_DEPS_DIR }}\lib\"
+        xcopy /Y "D:\v8\out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIR }}\lib\"
 
     - name: "配置 PHP SDK 环境与安装包"
       shell: cmd
