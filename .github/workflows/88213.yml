@@ -89,7 +89,7 @@ jobs:
       run: |
         set "PATH=D:\depot_tools;%PATH%"
         cd /d D:\v8
-        call gn gen out.gn/x64.release --args="v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\""
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\""
         call ninja -C out.gn/x64.release v8_monolith
 
     - name: "提取并组织 V8 编译产物"
