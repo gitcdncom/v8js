@@ -64,82 +64,80 @@ jobs:
         vsversion: "${{ env.VS_VERSION_ACTION }}" 
         toolset: "${{ env.MSVC_TOOLSET }}" 
 
-    - name: "配置环境变量与准备 Depot Tools"
-      shell: powershell
-      run: |
-        # 创建工作目录
-        New-Item -ItemType Directory -Force -Path "${{ env.V8_DEPS_DIRLIB }}"
-        New-Item -ItemType Directory -Force -Path "${{ env.V8_DEPS_DIRINC }}"
-        New-Item -ItemType Directory -Force -Path "${{ env.PHP_DEV_TEMP_DIR }}"
-
-        # 下载并配置 Depot Tools
-        if (-not (Test-Path "${{ github.workspace }}/depot_tools")) {
-            git clone ${{ env.DEPOT_TOOLS_URL }} "${{ github.workspace }}/depot_tools"
-        }
-        $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
-        $env:GYP_MSVS_VERSION = "${{ env.VS_VERSION_GN }}"
-        
-        # 将 depot_tools 写入系统 PATH 供后续步骤使用
-        Add-Content $env:GITHUB_PATH "${{ github.workspace }}/depot_tools"
-
-    - name: "同步 V8 源码并编译"
-      shell: powershell
-      env:
-        DEPOT_TOOLS_WIN_TOOLCHAIN: "0"
-        GYP_MSVS_VERSION: "2019"
-      run: |
-        # 强制配置不使用内置工具链
-        $env:PATH = "${{ github.workspace }}/depot_tools;" + $env:PATH
-        
-        if (-not (Test-Path "${{ github.workspace }}/v8-build")) {
-            New-Item -ItemType Directory -Force -Path "${{ github.workspace }}/v8-build"
-            cd "${{ github.workspace }}/v8-build"
-            gclient config --name=v8 ${{ env.V8_SRC_URL }}
-            gclient sync
-        } else {
-            cd "${{ github.workspace }}/v8-build/v8"
-            git fetch
-        }
-
-        # 进入 v8 源码目录编译
-        cd "${{ github.workspace }}/v8-build/v8"
-        
-        # 使用 GN 生成构建配置 (单文件模式以契合 V8Js)
-        gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\"" || exit 1
-        
-        # 编译单体静态库
-        ninja -C out.gn/x64.release v8_monolith
-
-        # 整理 V8 头文件与库文件到目标全局变量目录
-        Copy-Item -Path "out.gn/x64.release/obj/v8_monolith.lib" -Destination "${{ env.V8_DEPS_DIRLIB }}/v8.lib" -Force
-        Copy-Item -Path "include" -Destination "${{ env.V8_DEPS_DIR }}" -Recurse -Force
-
-    - name: "配置 PHP 开发包"
-      shell: powershell
-      run: |
-        Invoke-WebRequest -Uri "${{ env.PHP_DEVEL_PACK_URL }}" -OutFile "${{ env.PHP_DEV_TEMP_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}"
-        Expand-Archive -Path "${{ env.PHP_DEV_TEMP_DIR }}\${{ env.PHP_ZIP_FILE_NAME }}" -DestinationPath "${{ env.PHP_DEV_TEMP_DIR }}" -Force
-        
-        # 重命名并移动到统一的全局开发包路径
-        Move-Item -Path "${{ env.PHP_DEV_TEMP_DIR }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" -Destination "${{ env.PHP_DEV_PACK_DIR }}" -Force
-
-    - name: "编译 PHP V8Js 扩展"
+    - name: "配置 Depot Tools 并下载 V8 源码"
       shell: cmd
       run: |
-        :: 克隆 V8Js 源码
-        git clone ${{ env.V8JS_EXT_URL }} C:\v8js-src
-        cd C:\v8js-src
-
-        :: 依赖 PHP 官方工具包生成的 config.w32 配置环境
-        :: 传递 V8 库和头文件路径给配置脚本
-        phpize
-        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        if not exist "${{ github.workspace }}\depot_tools" (
+          git clone ${{ env.DEPOT_TOOLS_URL }} "${{ github.workspace }}\depot_tools"
+        )
+        set PATH=${{ github.workspace }}\depot_tools;%PATH%
+        set DEPOT_TOOLS_WIN_TOOLCHAIN=0
+        set GYP_MSVS_VERSION=${{ env.VS_VERSION_GN }}
         
-        :: 执行编译
-        nmake
+        cd /d "${{ github.workspace }}"
+        if not exist "v8-build" (
+          mkdir v8-build
+          cd v8-build
+          call fetch v8
+        ) else (
+          cd v8-build\v8
+          git fetch origin
+        )
 
-    - name: "上传生成的扩展二进制"
-      uses: actions/upload-artifact@v4
+    - name: "使用 GN 生成 V8 编译配置"
+      shell: cmd
+      run: |
+        set PATH=${{ github.workspace }}\depot_tools;%PATH%
+        set DEPOT_TOOLS_WIN_TOOLCHAIN=0
+        set GYP_MSVS_VERSION=${{ env.VS_VERSION_GN }}
+        
+        cd /d "${{ github.workspace }}\v8-build\v8"
+        call gn gen out.gn/x64.release --args="v8_enable_shared_ro_heap=true v8_enable_sandbox=false is_debug=false use_custom_libcxx=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true treat_warnings_as_errors=false target_cpu=\"x64\" visual_studio_version=\"${{ env.VS_VERSION_GN }}\"" || exit 1
+
+    - name: "编译 V8 静态库"
+      shell: cmd
+      run: |
+        set PATH=${{ github.workspace }}\depot_tools;%PATH%
+        cd /d "${{ github.workspace }}\v8-build\v8"
+        call ninja -C out.gn/x64.release v8_monolith || exit 1
+
+    - name: "整理 V8 编译产物到 D:\v8-deps"
+      shell: cmd
+      run: |
+        if not exist "${{ env.V8_DEPS_DIRLIB }}" mkdir "${{ env.V8_DEPS_DIRLIB }}"
+        if not exist "${{ env.V8_DEPS_DIRINC }}" mkdir "${{ env.V8_DEPS_DIRINC }}"
+        
+        xcopy /y /s "${{ github.workspace }}\v8-build\v8\include\*" "${{ env.V8_DEPS_DIRINC }}"
+        copy /y "${{ github.workspace }}\v8-build\v8\out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIRLIB }}"
+
+    - name: "下载并配置 PHP SDK 与 Dev Pack"
+      shell: cmd
+      run: |
+        if not exist "${{ env.PHP_SDK_ROOT }}" mkdir "${{ env.PHP_SDK_ROOT }}"
+        git clone ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\php-sdk-binary-tools"
+        
+        if not exist "${{ env.V8_PDT }}" mkdir "${{ env.V8_PDT }}"
+        powershell -Command "Invoke-WebRequest -Uri '${{ env.PHP_DEVEL_PACK_URL }}' -OutFile '${{ env.V8_PDT }}\${{ env.PHP_ZIP_FILE_NAME }}'"
+        powershell -Command "Expand-Archive -Path '${{ env.V8_PDT }}\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath '${{ env.V8_PDT }}'"
+        
+        if not exist "${{ env.PHP_DEV_PACK_DIR }}" mkdir "${{ env.PHP_DEV_PACK_DIR }}"
+        xcopy /y /e /e "${{ env.V8_PDT }}\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}\*" "${{ env.PHP_DEV_PACK_DIR }}"
+
+    - name: "下载并编译 V8js 扩展"
+      shell: cmd
+      run: |
+        cd /d "${{ github.workspace }}"
+        git clone ${{ env.V8JS_EXT_URL }} v8js
+        cd v8js
+        
+        call "${{ env.PHP_SDK_ROOT }}\php-sdk-binary-tools\phpsdk-vc16-x64.bat" || exit 1
+        
+        phpize
+        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-config="${{ env.PHP_DEV_PACK_DIR }}\php-config" || exit 1
+        nmake || exit 1
+
+    - name: "上传编译后的 php_v8js.dll"
+      uses: actions/artifacts@v4
       with:
-        name: php_v8js-php8.2-x64
-        path: C:\v8js-src\x64\Release\php_v8js.dll
+        name: php_v8js-dll
+        path: ${{ github.workspace }}\v8js\x64\Release\php_v8js.dll
