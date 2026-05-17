@@ -186,3 +186,15 @@ jobs:
         copy /Y "out.gn\x64.release\obj\v8_monolith.lib" "${{ env.V8_DEPS_DIRLIB }}\v8.lib"
         if exist out.gn\x64.release\icudtl.dat copy /Y "out.gn\x64.release\icudtl.dat" "${{ env.V8_DEPS_DIRLIB_2 }}"
         if exist out.gn\x64.release\snapshot_blob.bin copy /Y "out.gn\x64.release\snapshot_blob.bin" "${{ env.V8_DEPS_DIRLIB_2 }}"
+
+    - name: "克隆 PHP V8Js 扩展源码"
+      shell: cmd
+      run: |
+        if not exist "${{ env.PHP_DEV_PACK_DIR }}" (
+          echo 【致命错误】系统未检测到完整的 PHP 开发包目录！说明上游下载解压步骤已翻车，请检查网络或盘符！
+          exit 1
+        )
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        if not exist ext mkdir ext
+        if exist ext\v8js rmdir /S /Q ext\v8js
+        git clone "${{ env.V8JS_EXT_URL }}" ext\v8js
