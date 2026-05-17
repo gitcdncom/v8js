@@ -131,19 +131,20 @@ jobs:
       shell: cmd
       run: |
         set "PATH=D:\depot_tools;%PATH%"
+
+        :: 1. 顶层无损克隆
         cd /d D:\
         if exist v8js rd /s /q v8js
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
+        cd v8js
 
-        :: 1. 动态生成干净、平铺、没有任何特殊转义符号污染的纯命令脚本
-        echo cd /d D:\v8js > D:\build.bat
-        echo call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack" >> D:\build.bat
-        echo call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack" >> D:\build.bat
-        echo nmake >> D:\build.bat
+        :: 2. 【硬核爆破修复】绕过 starter 外壳，直接原位调用 SDK 最核心的变量注入批处理
+        call "${{ env.PHP_SDK_ROOT }}\bin\phpsdk_setvars.bat"
 
-        :: 2. 【核心修复】直接切入 SDK bin 目录，将写好的脚本通过标准的管道重定向强行喂进 starter 中，这样报错日志会 100% 被逼到屏幕上显示！
-        cd /d "${{ env.PHP_SDK_ROOT }}\bin"
-        phpsdk-starter.bat -c vs16 -a x64 < D:\build.bat
+        :: 3. 此时环境已然纯净激活，直接顺序轰出最终熔炼三连击，所有的报错和 Makefile 细节将直接百分之百泼在您的屏幕上！
+        call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack"
+        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="D:\php-sdk\php-dev-pack\php-devel-pack"
+        nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
