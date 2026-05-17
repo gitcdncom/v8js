@@ -75,7 +75,7 @@ jobs:
         echo solutions = [ { 'name': 'v8', 'url': '${{ env.V8_SRC_URL }}', 'deps_file': 'DEPS', 'managed': False, 'custom_deps': {}, 'custom_vars': {} } ] > .gclient
 
         :: 【精准修复】改用符合新版规范的探测命令，确保平稳触发后台编译组件下载并成功返回
-        call gclient --version
+        call gclient help
 
 
     - name: "同步 V8 源码"
