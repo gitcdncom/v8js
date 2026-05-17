@@ -86,6 +86,7 @@ jobs:
           cd /d D:\
           call fetch v8
         )
+        copy /Y D:\.gclient D:\v8\.gclient
         cd /d D:\v8
         call git fetch origin
         call git checkout lkgr
