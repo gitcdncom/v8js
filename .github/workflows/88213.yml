@@ -83,6 +83,11 @@ jobs:
     - name: "同步 V8 源码"
       shell: cmd
       run: |
+        if exist D:\v8\.git\INDEX_ERR rd /s /q D:\v8
+        if exist D:\v8 if not exist D:\v8\.git (
+          rd /s /q D:\v8
+        )
+        set DEPOT_TOOLS_UPDATE=0
         set "PATH=D:\depot_tools;%PATH%"
         if not exist D:\v8 (
           cd /d D:\
@@ -92,7 +97,7 @@ jobs:
         cd /d D:\v8
         call git fetch origin
         call git checkout lkgr
-        call gclient sync
+        call gclient sync --no-history --shallow
 
     - name: "编译 V8 引擎静态库"
       shell: cmd
