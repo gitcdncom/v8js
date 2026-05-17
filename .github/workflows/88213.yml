@@ -13,11 +13,11 @@ env:
   # 2. 核心源码与开发包远程地址（此后只需维护并修改这 4 行 URL 即可）
   PHP_ZIP_FILE_NAME: "php-devel-pack-8.2.13-Win32-vs16-x64.zip"            # 下载到本地保存的压缩包全名
   PHP_DEVEL_PACK_ORIGINAL_DIR: "php-8.2.13-devel-vs16-x64"            # 解压出来的原始根目录名称
-  PHP_DEVEL_PACK_URL: "https://downloads.php.net/~windows/releases/archives/php-devel-pack-8.2.13-Win32-vs16-x64.zip"
-  DEPOT_TOOLS_URL: "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
-  SDK_BINARYTOOLS_URL: "https://github.com/php/php-sdk-binary-tools.git"
-  V8_SRC_URL: "https://chromium.googlesource.com/v8/v8.git"
-  V8JS_EXT_URL: "https://github.com/phpv8/v8js.git"
+  PHP_DEVEL_PACK_URL: "https://php.net"
+  DEPOT_TOOLS_URL: "https://googlesource.com"
+  SDK_BINARYTOOLS_URL: "https://github.com"
+  V8_SRC_URL: "https://googlesource.com"
+  V8JS_EXT_URL: "https://github.com"
 
   # 3. 全局本地公共目录定义
   PHP_SDK_ROOT: "C:\\php-sdk"
@@ -115,8 +115,8 @@ jobs:
         cd /d "%GITHUB_WORKSPACE%\v8-build\v8"
         call set "PATH=%cd%\buildtools\win;%PATH%"
         
-        :: 注入核心 GN 参数：开启全功能 WASM、集成单体静态库、适配旧版 VC 运行时
-        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true v8_enable_shared_ro_heap=true treat_warnings_as_errors=false target_cpu=\"x64\" is_custom_libcxx=false use_custom_libcxx=false visual_studio_version=\"${{ env.VS_VERSION_GN }}\"" || exit 1
+        :: 注入核心参数：关闭沙箱避免 libc++ 冲突，保留全功能 WASM、集成单体静态库
+        call gn gen out.gn/x64.release --args="is_debug=false is_component_build=false v8_monolithic=true v8_use_external_startup_data=false v8_enable_i18n_support=true v8_enable_webassembly=true v8_enable_shared_ro_heap=true v8_enable_sandbox=false treat_warnings_as_errors=false target_cpu=\"x64\" is_custom_libcxx=false use_custom_libcxx=false visual_studio_version=\"${{ env.VS_VERSION_GN }}\"" || exit 1
         ninja -C out.gn\x64.release v8_monolith || exit 1
 
     - name: "整理并导出 V8 编译产物"
