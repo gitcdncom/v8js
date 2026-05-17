@@ -122,8 +122,8 @@ jobs:
         git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
         
-        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
         nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
