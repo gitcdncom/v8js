@@ -223,3 +223,21 @@ jobs:
         call configure.bat --with-v8js=shared --with-v8-dir="${{ env.V8_DEPS_DIR }}" --enable-debug=no
         if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
         echo [SUCCESS] 全局环境配置成功！
+
+    - name: "运行 NMAKE 编译"
+      shell: cmd
+      run: |
+        :: 1. 激活工具链与官方 SDK 变量环境
+        set "PATH=${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        cd /d "${{ env.PHP_SDK_ROOT }}"
+        if exist bin\phpsdk_setvars.bat call bin\phpsdk_setvars.bat
+        if exist phpsdk_setvars.bat call phpsdk_setvars.bat
+        
+        :: 2. 回到主开发包目录直接运行 nmake 启动编译（因为配置大图纸和 Makefile 已经生成在根目录）
+        cd /d "${{ env.PHP_DEV_PACK_DIR }}"
+        echo [INFO] 正在启动 nmake 清理与构建...
+        nmake clean
+        nmake
+        if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+        
+        echo [SUCCESS] php_v8js.dll 二进制扩展编译全流程顺利完成！
