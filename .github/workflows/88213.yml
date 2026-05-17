@@ -123,7 +123,7 @@ jobs:
         cd v8js
         
         phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
-        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
