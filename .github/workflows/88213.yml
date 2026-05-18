@@ -140,29 +140,39 @@ jobs:
       run: |
         set "PATH=D:\depot_tools;D:\php-sdk\bin;%PATH%"
         
+    - name: "拉取并编译 V8js 扩展"
+      shell: cmd
+      run: |
+        :: 1. 净化 PATH 环境，确保只有最基础的工具链
+        set "PATH=D:\depot_tools;D:\php-sdk\bin;%PATH%"
+        
         echo [DEBUG] 开始清理旧目录...
         cd /d D:\
         if exist v8js rd /s /q v8js
         if exist v8js.zip del /f /q v8js.zip
+        if exist v8js-master rd /s /q v8js-master
         
-        echo [DEBUG] 【精准突防】弃用 git clone 协议，改用 GitHub CLI (gh) 异步无死锁下载源码包...
-        :: 使用官方 CLI 绕过 git 握手，直接拉取 v8js 仓库的 zip 归档，彻底粉碎网络 I/O 死锁
-        call gh repo archive phpv8/v8js --format=zip --output=D:\v8js.zip
+        echo [DEBUG] 【精准突防】使用 curl 直接绕过 git 握手，高速下载官方 v8js 源码 ZIP 包...
+        :: 从 GitHub 骨干网直接拉取 master 分支压缩包，单线程网络传输，彻底免疫任何 I/O 死锁
+        curl -Lo D:\v8js.zip https://github.com
         
-        echo [DEBUG] 源码包下载完成，正在解压并重命名...
-        :: 使用 PowerShell 干净解压，并确保目录名绝对对齐为 D:\v8js
-        powershell -Command "Expand-Archive -Path 'D:\v8js.zip' -DestinationPath 'D:\v8js-tmp' -Force"
-        powershell -Command "Move-Item -Path 'D:\v8js-tmp\*' -Destination 'D:\v8js' -Force"
-        rd /s /q D:\v8js-tmp
+        echo [DEBUG] 源码包下载完成，正在解压并对齐目录...
+        :: 使用 PowerShell 干净解压
+        powershell -Command "Expand-Archive -Path 'D:\v8js.zip' -DestinationPath 'D:\' -Force"
+        
+        :: GitHub 默认解压出来会叫 v8js-master，将其更名为 D:\v8js，确保路径绝对对齐
+        move D:\v8js-master D:\v8js
         del /f /q D:\v8js.zip
         
-        echo [DEBUG] 目录组织完毕，正在进入 v8js 工作目录...
+        echo [DEBUG] 目录组织完毕，进入 v8js 工作目录...
         cd /d D:\v8js
         
+        :: 2. 锁定 PHP Devel Pack 物理路径，防止其内部脚本盲目探测
         set "PHP_RM_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         set "PHP_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         
-        echo [DEBUG] 开始执行 phpize.bat...
+        echo [DEBUG] 开始执行 phpize.bat ...
+        :: 使用经过验证的强力重定向，确保不发生任何静默挂起
         echo. 2>&1 | cmd /c "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat"
         
         echo [DEBUG] phpize 结束，检查 configure.bat 是否生成...
@@ -172,6 +182,7 @@ jobs:
         )
         
         echo [DEBUG] 开始配置编译参数...
+        :: 已经在 D:\v8js 根目录，满足 "Must be run from the root of the extension source" 限制
         echo. 2>&1 | cmd /c configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
