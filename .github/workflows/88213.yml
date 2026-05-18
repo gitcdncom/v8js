@@ -137,19 +137,26 @@ jobs:
 
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
-      # 【精准修复 1】彻底移除原先的 NUMBER_OF_PROCESSORS: 1，防止单核强制调度导致多线程 Git 收尾时死锁崩溃
       run: |
         set "PATH=D:\depot_tools;D:\php-sdk\bin;%PATH%"
         
         echo [DEBUG] 开始清理旧目录...
         cd /d D:\
         if exist v8js rd /s /q v8js
+        if exist v8js.zip del /f /q v8js.zip
         
-        echo [DEBUG] 开始克隆 v8js 源码 (采用单线程纯净模式防卡死)...
-        :: 【精准修复 2】在命令中加入 --config pack.threads=1，从软件层面将 Git 线程锁定为 1，优雅收尾不卡死
-        git clone --depth=1 --progress --config pack.threads=1 ${{ env.V8JS_EXT_URL }} v8js
+        echo [DEBUG] 【精准突防】弃用 git clone 协议，改用 GitHub CLI (gh) 异步无死锁下载源码包...
+        :: 使用官方 CLI 绕过 git 握手，直接拉取 v8js 仓库的 zip 归档，彻底粉碎网络 I/O 死锁
+        call gh repo archive phpv8/v8js --format=zip --output=D:\v8js.zip
         
-        echo [DEBUG] 克隆完成，正在进入目录...
+        echo [DEBUG] 源码包下载完成，正在解压并重命名...
+        :: 使用 PowerShell 干净解压，并确保目录名绝对对齐为 D:\v8js
+        powershell -Command "Expand-Archive -Path 'D:\v8js.zip' -DestinationPath 'D:\v8js-tmp' -Force"
+        powershell -Command "Move-Item -Path 'D:\v8js-tmp\*' -Destination 'D:\v8js' -Force"
+        rd /s /q D:\v8js-tmp
+        del /f /q D:\v8js.zip
+        
+        echo [DEBUG] 目录组织完毕，正在进入 v8js 工作目录...
         cd /d D:\v8js
         
         set "PHP_RM_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
