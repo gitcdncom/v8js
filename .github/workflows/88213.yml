@@ -143,7 +143,7 @@ jobs:
             :: 【精准修复】原位切入 bin 目录，调用拼写修正后的 phpsdk-vs16-x64.bat 入口文件
             cd /d "${{ env.PHP_SDK_ROOT }}\bin"
             call phpsdk-vs16-x64.bat
-        
+
             cd /d D:\
             git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
             cd v8js
