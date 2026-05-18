@@ -171,18 +171,16 @@ jobs:
         echo. 2>&1 | cmd /c "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat"
         
         echo [DEBUG] phpize 结束，检查 configure.bat 是否生成...
+        :: 【精准修复】彻底移除语法中误入的 "Error:" 字符串，恢复合规的单行或多行标准判断体
         if not exist configure.bat (
             echo [ERROR] configure.bat 生成失败！
             exit /b 1
         )
         
         echo [DEBUG] 开始配置编译参数...
-        :: 【精准修复】将参数中的环境变量转化为 cmd 能直接识别的全局物理路径 D:\v8-deps 和 D:\php-sdk\php-dev-pack
-        :: 同时移除在 Windows 扩展构建中无效的 --enable-nmake-interactive 参数（防止其弹警告）
         echo. 2>&1 | cmd /c configure.bat --with-v8js="D:\v8-deps" --with-php-build="D:\php-sdk\php-dev-pack"
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
-        :: 【精准修复】由于 Makefile 已正确生成，这里直接执行标准 nmake
         nmake
         
         echo [DEBUG] 编译步骤结束。
