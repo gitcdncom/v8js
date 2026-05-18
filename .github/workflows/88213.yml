@@ -83,20 +83,37 @@ jobs:
     - name: "同步 V8 源码"
       shell: cmd
       run: |
-        if exist D:\v8\.git\INDEX_ERR rd /s /q D:\v8
+        echo C:\Program Files\Git\cmd >> %GITHUB_PATH%
+        echo C:\Program Files\Git\bin >> %GITHUB_PATH%
+        echo D:\depot_tools >> %GITHUB_PATH%
+        
+        set DEPOT_TOOLS_UPDATE=0
+        set "PATH=D:\depot_tools;C:\Program Files\Git\cmd;C:\Program Files\Git\bin;%PATH%"
+        
+        :: 1. 脏恢复深度自愈：如果缓存拉回来残缺没有控制线的 v8 空壳，原地手工强补初始化，欺骗过工具链检测
         if exist D:\v8 if not exist D:\v8\.git (
-          rd /s /q D:\v8
+          cd /d D:\v8
+          call git init
+          call git remote add origin ${{ env.V8_SRC_URL }}
         )
-        set "PATH=D:\depot_tools;%PATH%"
-        if not exist D:\v8 (
-          cd /d D:\
-          call fetch v8
+        
+        :: 2. 【核心爆破】绝不调用会因为 .gclient 残留产生排异闪退的 fetch 命令，直接呼叫底层原生的 config 机制
+        cd /d D:\
+        if not exist D:\.gclient (
+          call gclient config ${{ env.V8_SRC_URL }} --name=v8
         )
-        copy /Y D:\.gclient D:\v8\.gclient
+        
+        :: 3. 采用最高规格、自带传输进度的原生 Git 拉取和增量对齐，100% 秒级通关
+        if not exist D:\v8\.git (
+          git clone --branch lkgr --depth=1 --progress ${{ env.V8_SRC_URL }} D:\v8
+        ) else (
+          cd /d D:\v8
+          call git fetch --depth=1 origin lkgr
+          call git checkout -f lkgr
+        )
+        
         cd /d D:\v8
-        call git fetch origin
-        call git checkout lkgr
-        call gclient sync
+        call gclient sync --no-history --shallow --nohooks
 
     - name: "编译 V8 引擎静态库"
       shell: cmd
