@@ -159,8 +159,8 @@ jobs:
         cd v8js
         
         :: 🚀【正规军标准重锋】所有暗锁已被管道彻底清洗，官方大车现在将畅通无阻全速开轰！
-        call "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        call "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
         nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
