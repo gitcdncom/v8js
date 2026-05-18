@@ -154,7 +154,7 @@ jobs:
         :: 官方标准正规军构建流
         call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-        nmake
+        nmake /P
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
