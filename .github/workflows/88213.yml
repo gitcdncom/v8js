@@ -150,10 +150,10 @@ jobs:
         mkdir D:\v8js
         xcopy /E /I /Y "v8js-src" "D:\v8js"
         
-        :: 2. 【精准修复 1】将 Chocolatey 默认安装 winflexbison3 的物理路径强行注入当前上下文的 PATH 最前端
+        :: 2. 将 winflexbison3 路径强行注入当前上下文的 PATH 最前端
         set "PATH=C:\ProgramData\chocolatey\lib\winflexbison3\tools;D:\depot_tools;D:\php-sdk\bin;%PATH%"
         
-        :: 3. 【精准修复 2】解决 PHP 构建脚本只认 bison.exe 而不认 win_bison.exe 的顽疾
+        :: 3. 补全 bison.exe
         if exist "C:\ProgramData\chocolatey\lib\winflexbison3\tools\win_bison.exe" (
             if not exist "C:\ProgramData\chocolatey\lib\winflexbison3\tools\bison.exe" (
                 copy /Y "C:\ProgramData\chocolatey\lib\winflexbison3\tools\win_bison.exe" "C:\ProgramData\chocolatey\lib\winflexbison3\tools\bison.exe"
@@ -177,10 +177,13 @@ jobs:
         )
         
         echo [DEBUG] 开始配置编译参数...
-        echo. 2>&1 | cmd /c configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
+        :: 【精准修复】将参数中的环境变量转化为 cmd 能直接识别的全局物理路径 D:\v8-deps 和 D:\php-sdk\php-dev-pack
+        :: 同时移除在 Windows 扩展构建中无效的 --enable-nmake-interactive 参数（防止其弹警告）
+        echo. 2>&1 | cmd /c configure.bat --with-v8js="D:\v8-deps" --with-php-build="D:\php-sdk\php-dev-pack"
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
-        echo. 2>&1 | nmake /NOLOGO
+        :: 【精准修复】由于 Makefile 已正确生成，这里直接执行标准 nmake
+        nmake
         
         echo [DEBUG] 编译步骤结束。
 
