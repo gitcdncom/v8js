@@ -152,8 +152,8 @@ jobs:
         cd v8js
         echo. > answer.ini
         :: 官方标准正规军构建流
-        call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
-        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack" < answer.ini
+        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack" < answer.ini
         nmake clean
         del /f /q answer.ini
         nmake
