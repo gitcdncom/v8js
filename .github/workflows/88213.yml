@@ -96,7 +96,7 @@ jobs:
         cd /d D:\v8
         call git fetch origin
         call git checkout lkgr
-        call gclient sync --no-history --shallow
+        call gclient sync
 
     - name: "编译 V8 引擎静态库"
       shell: cmd
