@@ -145,15 +145,28 @@ jobs:
     - name: "平移并编译 V8js 扩展"
       shell: cmd
       run: |
-        :: 1. 将源码物理平移到 D:\v8js 根目录
+        :: 1. 【精准补救】彻底降维击穿上一步因 cmd 未能解析 Actions 大括号变量而产生的畸形目录
+        cd /d D:\
+        if exist "${{ env.V8_DEPS_DIR }}" (
+            echo [DEBUG] 捕获到错位的大括号依赖目录，正在强行归位...
+            if exist v8-deps rd /s /q v8-deps
+            move /Y "${{ env.V8_DEPS_DIR }}" v8-deps
+        )
+        :: 兜底兼容不同的空格转义情况
+        if exist "${{env.V8_DEPS_DIR}}" (
+            if exist v8-deps rd /s /q v8-deps
+            move /Y "${{env.V8_DEPS_DIR}}" v8-deps
+        )
+
+        :: 2. 将源码物理平移到 D:\v8js 根目录
         if exist D:\v8js rd /s /q D:\v8js
         mkdir D:\v8js
         xcopy /E /I /Y "v8js-src" "D:\v8js"
         
-        :: 2. 将 winflexbison3 路径强行注入当前上下文的 PATH 最前端
+        :: 3. 将 winflexbison3 路径强行注入当前上下文的 PATH 最前端
         set "PATH=C:\ProgramData\chocolatey\lib\winflexbison3\tools;D:\depot_tools;D:\php-sdk\bin;%PATH%"
         
-        :: 3. 补全 bison.exe
+        :: 4. 补全 bison.exe
         if exist "C:\ProgramData\chocolatey\lib\winflexbison3\tools\win_bison.exe" (
             if not exist "C:\ProgramData\chocolatey\lib\winflexbison3\tools\bison.exe" (
                 copy /Y "C:\ProgramData\chocolatey\lib\winflexbison3\tools\win_bison.exe" "C:\ProgramData\chocolatey\lib\winflexbison3\tools\bison.exe"
@@ -163,7 +176,7 @@ jobs:
         echo [DEBUG] 正在切入 v8js 物理工作目录...
         cd /d D:\v8js
         
-        :: 4. 锁定 PHP Devel Pack 物理路径
+        :: 5. 锁定 PHP Devel Pack 物理路径
         set "PHP_RM_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         set "PHP_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         
@@ -171,13 +184,13 @@ jobs:
         echo. 2>&1 | cmd /c "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat"
         
         echo [DEBUG] phpize 结束，检查 configure.bat 是否生成...
-        :: 【精准修复】彻底移除语法中误入的 "Error:" 字符串，恢复合规的单行或多行标准判断体
         if not exist configure.bat (
             echo [ERROR] configure.bat 生成失败！
             exit /b 1
         )
         
         echo [DEBUG] 开始配置编译参数...
+        :: 此时 D:\v8-deps 目录已被强制校准，包含完整的 include\v8.h
         echo. 2>&1 | cmd /c configure.bat --with-v8js="D:\v8-deps" --with-php-build="D:\php-sdk\php-dev-pack"
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
