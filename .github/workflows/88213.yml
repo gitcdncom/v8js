@@ -136,21 +136,19 @@ jobs:
         rd /s /q "D:\php-sdk\php-dev-pack-tmp"
 
     - name: "拉取并编译 V8js 扩展"
-          shell: cmd
-          run: |
-            set "PATH=D:\depot_tools;%PATH%"
+      shell: cmd
+      run: |
+        set "PATH=D:\depot_tools;%PATH%"
         
-            :: 【精准修复】原位切入 bin 目录，调用拼写修正后的 phpsdk-vs16-x64.bat 入口文件
-            cd /d "${{ env.PHP_SDK_ROOT }}\bin"
-            call phpsdk-vs16-x64.bat
-
-            cd /d D:\
-            git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
-            cd v8js
-        
-            phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-            configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-            nmake
+        :: 【精准修复】原位切入 bin 目录，调用拼写修正后的 phpsdk-vs16-x64.bat 入口文件
+        cd /d "${{ env.PHP_SDK_ROOT }}\bin"
+        call phpsdk-vs16-x64.bat
+        cd /d D:\
+        git clone --depth=1 ${{ env.V8JS_EXT_URL }} v8js
+        cd v8js
+        phpize --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
