@@ -145,7 +145,7 @@ jobs:
     - name: "平移并编译 V8js 扩展"
       shell: cmd
       run: |
-        :: 1. 【精准修复】使用官方 %GITHUB_WORKSPACE% 变量绝对路径定位 v8js-src，彻底解决 cd /d D:\ 后找不到源码的问题
+        :: 1. 将源码物理平移到 D:\v8js 根目录
         if exist D:\v8js rd /s /q D:\v8js
         mkdir D:\v8js
         xcopy /E /I /Y "%GITHUB_WORKSPACE%\v8js-src" "D:\v8js"
@@ -163,6 +163,17 @@ jobs:
         echo [DEBUG] 正在切入 v8js 物理工作目录...
         cd /d D:\v8js
         
+        :: 【精准修复 1】彻底粉碎上一次残留下来的任何无效配置缓存，逼迫 configure.bat 重新进行物理扫描
+        if exist config.nice.bat del /f /q config.nice.bat
+        if exist config.status del /f /q config.status
+        
+        :: 【精准修复 2】防冲突目录结构扁平化校准。如果包含 include\v8\v8.h 嵌套，强行将深层头文件整体提取到 include 根目录下
+        if exist "D:\v8-deps\include\v8" (
+            echo [DEBUG] 检测到 V8 头文件存在二级嵌套目录，正在进行扁平化提取对齐...
+            xcopy /E /I /Y "D:\v8-deps\include\v8\*" "D:\v8-deps\include\"
+            rd /s /q "D:\v8-deps\include\v8"
+        )
+        
         :: 4. 锁定 PHP Devel Pack 物理路径
         set "PHP_RM_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         set "PHP_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
@@ -177,8 +188,8 @@ jobs:
         )
         
         echo [DEBUG] 开始配置编译参数...
-        :: 使用绝对路径指向绝对正确的 D:\v8-deps 目录
-        echo. 2>&1 | cmd /c configure.bat --with-v8js="D:\v8-deps" --with-php-build="D:\php-sdk\php-dev-pack"
+        :: 使用绝对路径和双斜杠兜底对齐，强制开启完全重新配置
+        echo. 2>&1 | cmd /c configure.bat --with-v8js="D:\v8-deps" --with-php-build="D:\php-sdk\php-dev-pack" --force
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
         nmake
