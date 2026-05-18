@@ -22,7 +22,7 @@ env:
   # 3. 全局本地公共目录定义
   # 注意：在 GitHub Actions Windows 节点中，D 盘空间通常比 C 盘更充裕，建议拉取和编译均在 D 盘进行
   PHP_SDK_ROOT: "D:\\php-sdk"
-  PHP_DEV_PACK_DIR: "D:\\php-sdk\\php-dev-pack"
+  PHP_DEV_PACK_DIR: "D:\\php-sdk\\php-devel-pack"
   V8_DEPS_DIR: "D:\\v8-deps"
   
   # Depot Tools 依赖的环境变量
@@ -132,7 +132,7 @@ jobs:
         powershell -Command "Expand-Archive -Path 'D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath 'D:\php-sdk\php-dev-pack-tmp' -Force"
         
         :: 2. 将解压出来的最内层核心数据，直接改名并挪移到变量规定的 \php-devel-pack 嵌套子目录下
-        move "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        move "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}"
         rd /s /q "D:\php-sdk\php-dev-pack-tmp"
 
     - name: "拉取并编译 V8js 扩展"
@@ -152,7 +152,7 @@ jobs:
         cd v8js
         
         :: 官方标准正规军构建流
-        call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        call "D:\php-sdk\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
         echo. | nmake
 
