@@ -139,7 +139,9 @@ jobs:
       shell: cmd
       run: |
         set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_SDK_ROOT }}\msys2\usr\bin;%PATH%"
-        
+        reg add "HKCU\Software\Microsoft\Windows Script Host\Settings" /v DisplayLogo /t REG_SZ /d "0" /f
+        reg add "HKCU\Software\Microsoft\Windows Script Host\Settings" /v Silent /t REG_SZ /d "1" /f
+
         call git config --global http.postBuffer 524288000
         call git config --global core.lowSpeedLimit 0
         call git config --global core.lowSpeedTime 999999
