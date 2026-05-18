@@ -140,7 +140,7 @@ jobs:
       env:
         NUMBER_OF_PROCESSORS: 2
       run: |
-        set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_SDK_ROOT }}\msys2\usr\bin;%PATH%"
+        set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         
         call git config --global http.postBuffer 524288000
         call git config --global core.lowSpeedLimit 0
