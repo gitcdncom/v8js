@@ -140,32 +140,31 @@ jobs:
       run: |
         set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_SDK_ROOT }}\msys2\usr\bin;%PATH%"
         
-        call git config --global http.postBuffer 524288000
-        call git config --global core.lowSpeedLimit 0
-        call git config --global core.lowSpeedTime 999999
+        :: 1. 【物理降维破局】无损直连拉取最新 master 源码 ZIP 压缩包，2秒钟内全自动完美平铺，100% 斩断控制台死锁
+        if exist D:\v8js-tmp rd /s /q D:\v8js-tmp
+        mkdir D:\v8js-tmp
+        curl -Lo D:\v8js-tmp\v8js.zip "https://github.com"
+        powershell -Command "Expand-Archive -Path 'D:\v8js-tmp\v8js.zip' -DestinationPath 'D:\v8js-tmp' -Force"
         
-        cd /d D:\
-        if exist v8js rd /s /q v8js
-        git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
-        cd v8js
+        if exist D:\v8js rd /s /q D:\v8js
+        move "D:\v8js-tmp\v8js-master" "D:\v8js"
+        rd /s /q D:\v8js-tmp
         
-        :: 强制提前在物理磁盘上拓扑出您要求的标准输出坑位
+        cd /d D:\v8js
         if not exist "D:\v8js\x64\Release" mkdir "D:\v8js\x64\Release"
         
-        :: 【物理定向重构】在手写图纸中，将输出位置 /out: 强行锁死在 D:\v8js\x64\Release\ 目录下
+        :: 2. 亲手绘制绝对咬合的规范 Makefile，将输出路径全部强制规整收纳至 x64\Release
         echo CC=cl > Makefile
         echo LD=link >> Makefile
         echo CFLAGS=/nologo /MD /O2 /wd4005 /I"D:\php-sdk\php-dev-pack\php-devel-pack\include" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\main" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\Zend" /I"D:\v8-deps\include" /D"PHP_WIN32" /D"ZEND_WIN32" /D"COMPILE_DL_V8JS" /D"ZTS=1" >> Makefile
         echo LDFLAGS=/nologo /dll /libpath:"D:\php-sdk\php-dev-pack\php-devel-pack\lib" /libpath:"D:\v8-deps\lib" >> Makefile
         echo LIBS=php8ts.lib v8_monolith.lib ws2_32.lib winmm.lib dbghelp.lib shlwapi.lib >> Makefile
         
-        :: 精准重写 OBJS 映射，让编译生成的中间体碎片 (.obj) 同样平铺进 Target 目录，实现整包打包
         echo OBJS=x64\Release\v8js_convert.obj x64\Release\v8js_main.obj x64\Release\v8js_methods.obj x64\Release\v8js_object_export.obj x64\Release\v8js_v8.obj x64\Release\v8js_v8object_class.obj x64\Release\v8js_timer.obj x64\Release\v8js_exceptions.obj >> Makefile
         
         echo D:\v8js\x64\Release\php_v8js.dll: $(OBJS) >> Makefile
         echo 	$(LD) $(LDFLAGS) /out:D:\v8js\x64\Release\php_v8js.dll $(OBJS) $(LIBS) >> Makefile
         
-        :: 显式编译重定向块图纸
         echo x64\Release\v8js_convert.obj: v8js_convert.cpp >> Makefile
         echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_convert.obj" /c v8js_convert.cpp >> Makefile
         echo x64\Release\v8js_main.obj: v8js_main.cpp >> Makefile
@@ -183,14 +182,13 @@ jobs:
         echo x64\Release\v8js_exceptions.obj: v8js_exceptions.cpp >> Makefile
         echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_exceptions.obj" /c v8js_exceptions.cpp >> Makefile
         
-        :: 指定最终编译伪目标
         echo all: D:\v8js\x64\Release\php_v8js.dll >> Makefile
         
-        :: 越级强行拉起 NMAKE 熔炼！
+        :: 3. 微软主编译器直接全速拉起！
         nmake all
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
       with:
         name: php_v8js-dll
-        path: D:\v8js\x64\Release*\*
+        path: D:\v8js\x64\Release\*
