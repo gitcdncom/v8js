@@ -135,28 +135,27 @@ jobs:
         move "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
         rd /s /q "D:\php-sdk\php-dev-pack-tmp"
 
-    - name: "拉取并编译 V8js 扩展"
-      shell: cmd
-      run: |
-        set "PATH=D:\depot_tools;D:\php-sdk\bin;%PATH%"
-        
-    # ==================== 【核心改动 1】使用官方组件直接注入源码，彻底免疫网络锁死与坏包 ====================
+    # ==================== 【精准突防】让官方组件在安全区拉取，随后手动平移 ====================
     - name: "拉取 v8js 源码"
       uses: actions/checkout@v4
       with:
         repository: 'phpv8/v8js'
-        path: 'D:\v8js'         # 强行指定解压到 D 盘根目录下的 v8js，路径完美对齐
+        path: 'v8js-src'         # 先安全地拉取到工作区内的 v8js-src 临时目录
 
-    - name: "编译 V8js 扩展"
+    - name: "平移并编译 V8js 扩展"
       shell: cmd
       run: |
-        :: 1. 净化 PATH 环境
-        set "PATH=D:\depot_tools;D:\php-sdk\bin;%PATH%"
+        :: 1. 【核心修复】将源码物理平移到 D:\v8js 根目录，彻底粉碎组件的安全限制
+        if exist D:\v8js rd /s /q D:\v8js
+        mkdir D:\v8js
+        xcopy /E /I /Y "v8js-src" "D:\v8js"
         
+        :: 2. 净化 PATH 环境并切入工作目录
+        set "PATH=D:\depot_tools;D:\php-sdk\bin;%PATH%"
         echo [DEBUG] 正在切入 v8js 物理工作目录...
         cd /d D:\v8js
         
-        :: 2. 锁定 PHP Devel Pack 物理路径，防止其内部脚本盲目探测
+        :: 3. 锁定 PHP Devel Pack 物理路径，防止其内部脚本盲目探测
         set "PHP_RM_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         set "PHP_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         
@@ -178,3 +177,9 @@ jobs:
         echo. 2>&1 | nmake /NOLOGO
         
         echo [DEBUG] 编译步骤结束。
+
+    - name: "上传编译产物 (php_v8js.dll)"
+      uses: actions/upload-artifact@v4
+      with:
+        name: php_v8js-dll
+        path: D:\v8js\x64\Release*\*
