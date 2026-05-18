@@ -117,8 +117,6 @@ jobs:
 
     - name: "配置 PHP SDK 环境与安装包"
       shell: cmd
-      env:
-        NUMBER_OF_PROCESSORS: 2
       run: |
         if not exist "${{ env.PHP_SDK_ROOT }}" mkdir "${{ env.PHP_SDK_ROOT }}"
         if not exist "${{ env.PHP_SDK_ROOT }}\bin" git clone --depth=1 ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\bin"
@@ -139,6 +137,8 @@ jobs:
 
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
+      env:
+        NUMBER_OF_PROCESSORS: 2
       run: |
         set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_SDK_ROOT }}\msys2\usr\bin;%PATH%"
         
@@ -150,7 +150,8 @@ jobs:
         if exist v8js rd /s /q v8js
         git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
-
+        
+        :: 官方标准正规军构建流
         call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
         nmake
