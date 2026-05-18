@@ -172,8 +172,3 @@ jobs:
         
         echo [DEBUG] 编译步骤结束。
 
-    - name: "上传编译产物 (php_v8js.dll)"
-      uses: actions/upload-artifact@v4
-      with:
-        name: php_v8js-dll
-        path: D:\v8js\x64\Release*\*
