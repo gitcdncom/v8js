@@ -22,7 +22,7 @@ env:
   # 3. 全局本地公共目录定义
   # 注意：在 GitHub Actions Windows 节点中，D 盘空间通常比 C 盘更充裕，建议拉取和编译均在 D 盘进行
   PHP_SDK_ROOT: "D:\\php-sdk"
-  PHP_DEV_PACK_DIR: "D:\\php-sdk\\php-devel-pack"
+  PHP_DEV_PACK_DIR: "D:\\php-sdk\\php-dev-pack"
   V8_DEPS_DIR: "D:\\v8-deps"
   
   # Depot Tools 依赖的环境变量
@@ -132,7 +132,7 @@ jobs:
         powershell -Command "Expand-Archive -Path 'D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_ZIP_FILE_NAME }}' -DestinationPath 'D:\php-sdk\php-dev-pack-tmp' -Force"
         
         :: 2. 将解压出来的最内层核心数据，直接改名并挪移到变量规定的 \php-devel-pack 嵌套子目录下
-        move "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}"
+        move "D:\php-sdk\php-dev-pack-tmp\${{ env.PHP_DEVEL_PACK_ORIGINAL_DIR }}" "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
         rd /s /q "D:\php-sdk\php-dev-pack-tmp"
 
     - name: "拉取并编译 V8js 扩展"
@@ -140,22 +140,24 @@ jobs:
       env:
         NUMBER_OF_PROCESSORS: 1
       run: |
-        set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
+        :: 1. 【精准修复】确保同时包含 depot_tools、PHP 开发包的 bin 目录以及全局 PATH
+        set "PATH=D:\depot_tools;D:\php-sdk\bin;D:\php-sdk\php-dev-pack\php-devel-pack;%PATH%"
         
         echo [DEBUG] 正在清洗并克隆 v8js 源码...
         cd /d D:\
         if exist v8js rd /s /q v8js
-        
-        :: 恢复轻量、无参数死锁的原生克隆
         git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
         
         echo [DEBUG] 克隆完成，正在进入目录...
         cd /d D:\v8js
         
+        :: 2. 【精准修复】定义官方标准环境变量，明确告知 C 编译器位置与开发包物理路径
+        set "PHP_RM_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
+        set "PHP_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
+        
         echo [DEBUG] 开始执行 phpize.bat...
-        :: 【精准修复 1】phpize.bat 纯净运行，不允许夹带 --with-php-build 参数（该参数属于后面的 configure）
-        :: 同时强制管道击穿内部可能存在的任何路径警告暂停
-        echo. | call "D:\php-sdk\php-devel-pack\phpize.bat"
+        :: 【精准修复】改用 cmd /c 在具备完整 MSVC/PHP 变量的环境中强行激活 phpize
+        echo. | cmd /c "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat"
         
         echo [DEBUG] phpize 执行完毕，检查 configure.bat 是否生成...
         if not exist configure.bat (
@@ -164,7 +166,6 @@ jobs:
         )
         
         echo [DEBUG] 开始配置编译参数...
-        :: 【精准修复 2】将 --with-php-build 参数安全归位给 configure.bat，并在独立上下文中执行
         echo. | cmd /c configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
