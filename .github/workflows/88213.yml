@@ -138,7 +138,7 @@ jobs:
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
       env:
-        NUMBER_OF_PROCESSORS: 2
+        NUMBER_OF_PROCESSORS: 1
       run: |
         set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;%PATH%"
         
