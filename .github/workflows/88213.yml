@@ -155,7 +155,7 @@ jobs:
         echo [DEBUG] 开始执行 phpize.bat...
         :: 【精准修复 1】phpize.bat 纯净运行，不允许夹带 --with-php-build 参数（该参数属于后面的 configure）
         :: 同时强制管道击穿内部可能存在的任何路径警告暂停
-        echo. | call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat"
+        echo. | call "D:\php-sdk\php-devel-pack\phpize.bat"
         
         echo [DEBUG] phpize 执行完毕，检查 configure.bat 是否生成...
         if not exist configure.bat (
