@@ -140,20 +140,20 @@ jobs:
       run: |
         set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_SDK_ROOT }}\msys2\usr\bin;%PATH%"
         
-        call git config --global http.postBuffer 524288000
-        call git config --global core.lowSpeedLimit 0
-        call git config --global core.lowSpeedTime 999999
+        :: 🚀 【降维代替 git clone】全面清除脆弱的 git 句柄大坑！改用 100% 纯单线程、绝对不霸占控制台的 ZIP 直连下载
+        if exist D:\v8js-tmp rd /s /q D:\v8js-tmp
+        mkdir D:\v8js-tmp
+        curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -Lo D:\v8js-tmp\v8js.zip "https://github.com"
+        powershell -Command "Expand-Archive -Path 'D:\v8js-tmp\v8js.zip' -DestinationPath 'D:\v8js-tmp' -Force"
         
-        cd /d D:\
-        if exist v8js rd /s /q v8js
-        git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
-        cd v8js
+        if exist D:\v8js rd /s /q D:\v8js
+        move "D:\v8js-tmp\v8js-master" "D:\v8js"
+        rd /s /q D:\v8js-tmp
         
-        :: 强制提前在物理磁盘上拓扑出规范打包子文件夹
+        cd /d D:\v8js
         if not exist "D:\v8js\x64\Release" mkdir "D:\v8js\x64\Release"
         
-        :: 🛠️【降维打击彻底拆除死锁外壳】拒绝使用带有 pause 僵死隐患的官方流
-        :: 亲手绘制绝对对齐所有磁盘路径、且定向输出至 x64\Release\ 的终极 Makefile 施工图纸
+        :: 🛠️ 亲手绘制绝对对齐所有磁盘路径、且定向输出至 x64\Release\ 的终极固化 Makefile 施工图纸
         echo CC=cl > Makefile
         echo LD=link >> Makefile
         echo CFLAGS=/nologo /MD /O2 /wd4005 /I"D:\php-sdk\php-dev-pack\php-devel-pack\include" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\main" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\Zend" /I"D:\v8-deps\include" /D"WIN32" /D"_AMD64_" /D"PHP_WIN32" /D"ZEND_WIN32" /D"ZTS=1" /D"ZEND_DEBUG=0" /D"COMPILE_DL_V8JS" /D"_WIN32_WINNT=0x0A00" >> Makefile
@@ -166,7 +166,7 @@ jobs:
         echo D:\v8js\x64\Release\php_v8js.dll: $(OBJS) >> Makefile
         echo 	$(LD) $(LDFLAGS) /out:D:\v8js\x64\Release\php_v8js.dll $(OBJS) $(LIBS) >> Makefile
         
-        :: 显式编译重定向块图纸（利用 /Fo 参数强制将全部中间体碎片物理规范平铺，保障 100% 打包不踩空）
+        :: 显式编译重定向块图纸
         echo x64\Release\v8js_array_access.obj: v8js_array_access.cc >> Makefile
         echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_array_access.obj" /c v8js_array_access.cc >> Makefile
         echo x64\Release\v8js_class.obj: v8js_class.cc >> Makefile
@@ -196,7 +196,7 @@ jobs:
         
         echo all: D:\v8js\x64\Release\php_v8js.dll >> Makefile
         
-        :: 🚀 微软 C++ 原生编译器毫无干扰、全速拉起开轰！
+        :: 🚀 绕过所有黑盒假死内鬼，微软 C++ 原生编译器无阻力开轰！
         nmake all
 
     - name: "上传编译产物 (php_v8js.dll)"
