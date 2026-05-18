@@ -84,6 +84,11 @@ jobs:
       shell: cmd
       run: |
         set "PATH=D:\depot_tools;%PATH%"
+        if not exist D:\v8\.git (
+          echo [WARNING] 历史恢复路径严重断裂或非合规残缺包，正在清洗配置残留...
+          if exist D:\.gclient del /f /q D:\.gclient
+          if exist D:\.gclient_entries del /f /q D:\.gclient_entries
+        )
         if not exist D:\v8 (
           cd /d D:\
           call fetch v8
