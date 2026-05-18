@@ -85,29 +85,16 @@ jobs:
       run: |
         echo C:\Program Files\Git\cmd >> %GITHUB_PATH%
         echo C:\Program Files\Git\bin >> %GITHUB_PATH%
-        echo D:\depot_tools >> %GITHUB_PATH%
-        
-        set DEPOT_TOOLS_UPDATE=0
-        set "PATH=D:\depot_tools;C:\Program Files\Git\cmd;C:\Program Files\Git\bin;%PATH%"
-        
-        :: 1. 脏恢复深度自愈
-        if exist D:\v8 if not exist D:\v8\.git (
-          cd /d D:\v8
-          call git init
-          call git remote add origin ${{ env.V8_SRC_URL }}
-        )
-        
-        :: 2. 纯净初始化：如果 v8 主仓不存在则进行极浅层拉取
+        set "PATH=D:\depot_tools;%PATH%"
         if not exist D:\v8 (
-          git clone --branch lkgr --depth=1 --progress ${{ env.V8_SRC_URL }} D:\v8
+          cd /d D:\
+          call fetch v8
         )
-        
-        :: 3. 【核心对齐修复】直接移入内层 v8 原位，原位写出标准的 .gclient 配置文件，消除跨级父目录错位警告
+        copy /Y D:\.gclient D:\v8\.gclient
         cd /d D:\v8
-        call gclient config ${{ env.V8_SRC_URL }} --name=v8
-        
-        :: 4. 【核心对齐修复】追加 --reset 参数，强制允许工具链执行原位环境强制对齐，安全通关
-        call gclient sync --no-history --shallow --nohooks --reset
+        call git fetch origin
+        call git checkout lkgr
+        call gclient sync
 
     - name: "编译 V8 引擎静态库"
       shell: cmd
