@@ -83,16 +83,33 @@ jobs:
     - name: "同步 V8 源码"
       shell: cmd
       run: |
+        echo C:\Program Files\Git\cmd >> %GITHUB_PATH%
+        echo C:\Program Files\Git\bin >> %GITHUB_PATH%
         set "PATH=D:\depot_tools;%PATH%"
+        
+        :: 1. 您的经典脏恢复自愈防线
         if exist D:\v8 if not exist D:\v8\.git (
           cd /d D:\v8
           call git init
           call git remote add origin ${{ env.V8_SRC_URL }}
         )
-        if not exist D:\v8 (
-          cd /d D:\
-          call fetch v8
+        
+        :: 2. 您的原生配置检测爆破
+        cd /d D:\
+        if not exist D:\.gclient (
+          call gclient config ${{ env.V8_SRC_URL }} --name=v8
         )
+        
+        :: 3. 您的标准浅层拉取与对齐流
+        if not exist D:\v8\.git (
+          git clone --branch lkgr --depth=1 --progress ${{ env.V8_SRC_URL }} D:\v8
+        ) else (
+          cd /d D:\v8
+          call git fetch --depth=1 origin lkgr
+          call git checkout -f lkgr
+        )
+        
+        :: 4. 您的立功神迹命令：物理双重平铺对齐
         copy /Y D:\.gclient D:\v8\.gclient
         cd /d D:\v8
         call git fetch origin
