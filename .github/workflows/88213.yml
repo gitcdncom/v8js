@@ -149,10 +149,45 @@ jobs:
         git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
         
-        :: 官方标准正规军构建流
-        call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-        nmake
+        :: 强制提前在物理磁盘上拓扑出您要求的标准输出坑位
+        if not exist "D:\v8js\x64\Release" mkdir "D:\v8js\x64\Release"
+        
+        :: 【物理定向重构】在手写图纸中，将输出位置 /out: 强行锁死在 D:\v8js\x64\Release\ 目录下
+        echo CC=cl > Makefile
+        echo LD=link >> Makefile
+        echo CFLAGS=/nologo /MD /O2 /wd4005 /I"D:\php-sdk\php-dev-pack\php-devel-pack\include" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\main" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\Zend" /I"D:\v8-deps\include" /D"PHP_WIN32" /D"ZEND_WIN32" /D"COMPILE_DL_V8JS" /D"ZTS=1" >> Makefile
+        echo LDFLAGS=/nologo /dll /libpath:"D:\php-sdk\php-dev-pack\php-devel-pack\lib" /libpath:"D:\v8-deps\lib" >> Makefile
+        echo LIBS=php8ts.lib v8_monolith.lib ws2_32.lib winmm.lib dbghelp.lib shlwapi.lib >> Makefile
+        
+        :: 精准重写 OBJS 映射，让编译生成的中间体碎片 (.obj) 同样平铺进 Target 目录，实现整包打包
+        echo OBJS=x64\Release\v8js_convert.obj x64\Release\v8js_main.obj x64\Release\v8js_methods.obj x64\Release\v8js_object_export.obj x64\Release\v8js_v8.obj x64\Release\v8js_v8object_class.obj x64\Release\v8js_timer.obj x64\Release\v8js_exceptions.obj >> Makefile
+        
+        echo D:\v8js\x64\Release\php_v8js.dll: $(OBJS) >> Makefile
+        echo 	$(LD) $(LDFLAGS) /out:D:\v8js\x64\Release\php_v8js.dll $(OBJS) $(LIBS) >> Makefile
+        
+        :: 显式编译重定向块图纸
+        echo x64\Release\v8js_convert.obj: v8js_convert.cpp >> Makefile
+        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_convert.obj" /c v8js_convert.cpp >> Makefile
+        echo x64\Release\v8js_main.obj: v8js_main.cpp >> Makefile
+        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_main.obj" /c v8js_main.cpp >> Makefile
+        echo x64\Release\v8js_methods.obj: v8js_methods.cpp >> Makefile
+        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_methods.obj" /c v8js_methods.cpp >> Makefile
+        echo x64\Release\v8js_object_export.obj: v8js_object_export.cpp >> Makefile
+        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_object_export.obj" /c v8js_object_export.cpp >> Makefile
+        echo x64\Release\v8js_v8.obj: v8js_v8.cpp >> Makefile
+        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_v8.obj" /c v8js_v8.cpp >> Makefile
+        echo x64\Release\v8js_v8object_class.obj: v8js_v8object_class.cpp >> Makefile
+        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_v8object_class.obj" /c v8js_v8object_class.cpp >> Makefile
+        echo x64\Release\v8js_timer.obj: v8js_timer.cpp >> Makefile
+        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_timer.obj" /c v8js_timer.cpp >> Makefile
+        echo x64\Release\v8js_exceptions.obj: v8js_exceptions.cpp >> Makefile
+        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_exceptions.obj" /c v8js_exceptions.cpp >> Makefile
+        
+        :: 指定最终编译伪目标
+        echo all: D:\v8js\x64\Release\php_v8js.dll >> Makefile
+        
+        :: 越级强行拉起 NMAKE 熔炼！
+        nmake all
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
