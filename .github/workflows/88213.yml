@@ -138,28 +138,19 @@ jobs:
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
       run: |
-        set "PATH=D:\depot_tools;%PATH%"
+        set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_SDK_ROOT }}\msys2\usr\bin;%PATH%"
         
-        :: ⚙️【注册表破局】强制修改 WScript 配置，100% 掐死随后的 cscript/phpize 内部引发的后台隐藏确认弹窗
-        reg add "HKCU\Software\Microsoft\Windows Script Host\Settings" /v DisplayLogo /t REG_SZ /d "0" /f
-        reg add "HKCU\Software\Microsoft\Windows Script Host\Settings" /v Silent /t REG_SZ /d "1" /f
-        
-        :: ⚙️【网络扩容破局】拓宽 500MB Git 缓冲区，彻底阻断 Git 源码拉取时发生假死
         call git config --global http.postBuffer 524288000
         call git config --global core.lowSpeedLimit 0
         call git config --global core.lowSpeedTime 999999
-        
-        :: 🚀【管道重定向破局】原位切入，用 echo. 管道提前投喂回车，100% 瓦解 phpsdk.bat 末尾内置的 cmd /k 交互死锁！
-        cd /d "${{ env.PHP_SDK_ROOT }}\bin"
-        echo. | call phpsdk-vs16-x64.bat
         
         cd /d D:\
         if exist v8js rd /s /q v8js
         git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
         cd v8js
         
-        :: 🚀【正规军标准重锋】所有暗锁已被管道彻底清洗，官方大车现在将畅通无阻全速开轰！
-        call "${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
+        :: 官方标准正规军构建流
+        call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
         call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}\php-devel-pack"
         nmake
 
