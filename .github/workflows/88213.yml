@@ -140,64 +140,18 @@ jobs:
       run: |
         set "PATH=D:\depot_tools;${{ env.PHP_SDK_ROOT }}\bin;${{ env.PHP_SDK_ROOT }}\msys2\usr\bin;%PATH%"
         
-        :: 🚀 【降维代替 git clone】全面清除脆弱的 git 句柄大坑！改用 100% 纯单线程、绝对不霸占控制台的 ZIP 直连下载
-        if exist D:\v8js-tmp rd /s /q D:\v8js-tmp
-        mkdir D:\v8js-tmp
-        curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -Lo D:\v8js-tmp\v8js.zip "https://github.com"
-        powershell -Command "Expand-Archive -Path 'D:\v8js-tmp\v8js.zip' -DestinationPath 'D:\v8js-tmp' -Force"
+        call git config --global http.postBuffer 524288000
+        call git config --global core.lowSpeedLimit 0
+        call git config --global core.lowSpeedTime 999999
         
-        if exist D:\v8js rd /s /q D:\v8js
-        move "D:\v8js-tmp\v8js-master" "D:\v8js"
-        rd /s /q D:\v8js-tmp
-        
-        cd /d D:\v8js
-        if not exist "D:\v8js\x64\Release" mkdir "D:\v8js\x64\Release"
-        
-        :: 🛠️ 亲手绘制绝对对齐所有磁盘路径、且定向输出至 x64\Release\ 的终极固化 Makefile 施工图纸
-        echo CC=cl > Makefile
-        echo LD=link >> Makefile
-        echo CFLAGS=/nologo /MD /O2 /wd4005 /I"D:\php-sdk\php-dev-pack\php-devel-pack\include" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\main" /I"D:\php-sdk\php-dev-pack\php-devel-pack\include\Zend" /I"D:\v8-deps\include" /D"WIN32" /D"_AMD64_" /D"PHP_WIN32" /D"ZEND_WIN32" /D"ZTS=1" /D"ZEND_DEBUG=0" /D"COMPILE_DL_V8JS" /D"_WIN32_WINNT=0x0A00" >> Makefile
-        echo LDFLAGS=/nologo /dll /libpath:"D:\php-sdk\php-dev-pack\php-devel-pack\lib" /libpath:"D:\v8-deps\lib" >> Makefile
-        echo LIBS=php8ts.lib v8_monolith.lib advapi32.lib user32.lib ole32.lib oleaut32.lib ws2_32.lib winmm.lib dbghelp.lib shlwapi.lib >> Makefile
-        
-        :: 精准对齐 phpv8/v8js 官方主仓最新包含的 13 个核心 C++ 组件进行编译映射
-        echo OBJS=x64\Release\v8js_array_access.obj x64\Release\v8js_class.obj x64\Release\v8js_commonjs.obj x64\Release\v8js_convert.obj x64\Release\v8js_exceptions.obj x64\Release\v8js_generator_export.obj x64\Release\v8js_main.obj x64\Release\v8js_methods.obj x64\Release\v8js_object_export.obj x64\Release\v8js_timer.obj x64\Release\v8js_v8.obj x64\Release\v8js_v8object_class.obj x64\Release\v8js_variables.obj >> Makefile
-        
-        echo D:\v8js\x64\Release\php_v8js.dll: $(OBJS) >> Makefile
-        echo 	$(LD) $(LDFLAGS) /out:D:\v8js\x64\Release\php_v8js.dll $(OBJS) $(LIBS) >> Makefile
-        
-        :: 显式编译重定向块图纸
-        echo x64\Release\v8js_array_access.obj: v8js_array_access.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_array_access.obj" /c v8js_array_access.cc >> Makefile
-        echo x64\Release\v8js_class.obj: v8js_class.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_class.obj" /c v8js_class.cc >> Makefile
-        echo x64\Release\v8js_commonjs.obj: v8js_commonjs.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_commonjs.obj" /c v8js_commonjs.cc >> Makefile
-        echo x64\Release\v8js_convert.obj: v8js_convert.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_convert.obj" /c v8js_convert.cc >> Makefile
-        echo x64\Release\v8js_exceptions.obj: v8js_exceptions.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_exceptions.obj" /c v8js_exceptions.cc >> Makefile
-        echo x64\Release\v8js_generator_export.obj: v8js_generator_export.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_generator_export.obj" /c v8js_generator_export.cc >> Makefile
-        echo x64\Release\v8js_main.obj: v8js_main.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_main.obj" /c v8js_main.cc >> Makefile
-        echo x64\Release\v8js_methods.obj: v8js_methods.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_methods.obj" /c v8js_methods.cc >> Makefile
-        echo x64\Release\v8js_object_export.obj: v8js_object_export.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_object_export.obj" /c v8js_object_export.cc >> Makefile
-        echo x64\Release\v8js_timer.obj: v8js_timer.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_timer.obj" /c v8js_timer.cc >> Makefile
-        echo x64\Release\v8js_v8.obj: v8js_v8.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_v8.obj" /c v8js_v8.cc >> Makefile
-        echo x64\Release\v8js_v8object_class.obj: v8js_v8object_class.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_v8object_class.obj" /c v8js_v8object_class.cc >> Makefile
-        echo x64\Release\v8js_variables.obj: v8js_variables.cc >> Makefile
-        echo 	$(CC) $(CFLAGS) /Fo"x64\Release\v8js_variables.obj" /c v8js_variables.cc >> Makefile
-        
-        echo all: D:\v8js\x64\Release\php_v8js.dll >> Makefile
-        
-        :: 🚀 绕过所有黑盒假死内鬼，微软 C++ 原生编译器无阻力开轰！
-        nmake all
+        cd /d D:\
+        if exist v8js rd /s /q v8js
+        git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
+        cd v8js
+
+        call "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        nmake
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
