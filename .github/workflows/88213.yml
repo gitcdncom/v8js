@@ -117,6 +117,8 @@ jobs:
 
     - name: "配置 PHP SDK 环境与安装包"
       shell: cmd
+      env:
+        NUMBER_OF_PROCESSORS: 2
       run: |
         if not exist "${{ env.PHP_SDK_ROOT }}" mkdir "${{ env.PHP_SDK_ROOT }}"
         if not exist "${{ env.PHP_SDK_ROOT }}\bin" git clone --depth=1 ${{ env.SDK_BINARYTOOLS_URL }} "${{ env.PHP_SDK_ROOT }}\bin"
