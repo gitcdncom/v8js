@@ -146,15 +146,33 @@ jobs:
         call git config --global core.lowSpeedLimit 0
         call git config --global core.lowSpeedTime 999999
         
+        echo [DEBUG] 正在清洗并克隆 v8js 源码...
         cd /d D:\
         if exist v8js rd /s /q v8js
         git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
-        cd v8js
         
-        :: 官方标准正规军构建流
-        call "D:\php-sdk\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
-        call configure --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
-        echo. | nmake
+        echo [DEBUG] 克隆完成，正在进入目录...
+        cd /d D:\v8js
+        
+        echo [DEBUG] 开始执行 phpize.bat...
+        :: 【精准修复 1】强制注入空输入击穿 phpize.bat 内部可能存在的任何 pause 或询问
+        echo. | call "D:\php-sdk\php-devel-pack\phpize.bat" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}"
+        
+        echo [DEBUG] phpize 执行完毕，检查 configure.bat 是否生成...
+        if not exist configure.bat (
+            echo [ERROR] configure.bat 生成失败！
+            exit /b 1
+        )
+        
+        echo [DEBUG] 开始配置编译参数...
+        :: 【精准修复 2】改用 cmd /c 独立进程上下文调用 configure，彻底切断主进程句柄死锁的可能
+        echo. | cmd /c configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
+        
+        echo [DEBUG] 配置完成，开始 nmake 编译...
+        :: 【精准修复 3】显式指定完全非交互模式
+        echo. | nmake /NOLOGO
+        
+        echo [DEBUG] 编译步骤结束。
 
     - name: "上传编译产物 (php_v8js.dll)"
       uses: actions/upload-artifact@v4
