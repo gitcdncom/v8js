@@ -145,7 +145,7 @@ jobs:
     - name: "平移并编译 V8js 扩展"
       shell: cmd
       run: |
-        :: 1. 将源码物理平移到 D:\v8js 根目录
+        :: 1. 将源码从工作区物理平移到 D:\v8js 根目录
         if exist D:\v8js rd /s /q D:\v8js
         mkdir D:\v8js
         xcopy /E /I /Y "%GITHUB_WORKSPACE%\v8js-src" "D:\v8js"
@@ -160,25 +160,25 @@ jobs:
             )
         )
         
+        :: 4. 【精准修复 1】必须先切入 D:\v8js 源码根目录内部！
         echo [DEBUG] 正在切入 v8js 物理工作目录...
         cd /d D:\v8js
         
-        :: 【精准修复 1】彻底粉碎上一次残留下来的任何无效配置缓存，逼迫 configure.bat 重新进行物理扫描
-        if exist config.nice.bat del /f /q config.nice.bat
-        if exist config.status del /f /q config.status
-        
-        :: 【精准修复 2】防冲突目录结构扁平化校准。如果包含 include\v8\v8.h 嵌套，强行将深层头文件整体提取到 include 根目录下
+        :: 5. 【精准修复 2】在已经进入 v8js 目录后，再进行 V8 依赖项的扁平化清洗，绝不破坏当前 cmd 的当前工作目录句柄
         if exist "D:\v8-deps\include\v8" (
             echo [DEBUG] 检测到 V8 头文件存在二级嵌套目录，正在进行扁平化提取对齐...
             xcopy /E /I /Y "D:\v8-deps\include\v8\*" "D:\v8-deps\include\"
             rd /s /q "D:\v8-deps\include\v8"
         )
+        if exist config.nice.bat del /f /q config.nice.bat
+        if exist config.status del /f /q config.status
         
-        :: 4. 锁定 PHP Devel Pack 物理路径
+        :: 6. 锁定 PHP Devel Pack 物理路径
         set "PHP_RM_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         set "PHP_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         
         echo [DEBUG] 开始执行 phpize.bat ...
+        :: 此时已在 D:\v8js 内部，phpize 会百分之百成功输出 configure.bat
         echo. 2>&1 | cmd /c "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat"
         
         echo [DEBUG] phpize 结束，检查 configure.bat 是否生成...
@@ -188,7 +188,6 @@ jobs:
         )
         
         echo [DEBUG] 开始配置编译参数...
-        :: 使用绝对路径和双斜杠兜底对齐，强制开启完全重新配置
         echo. 2>&1 | cmd /c configure.bat --with-v8js="D:\v8-deps" --with-php-build="D:\php-sdk\php-dev-pack" --force
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
