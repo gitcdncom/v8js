@@ -145,22 +145,29 @@ jobs:
     - name: "平移并编译 V8js 扩展"
       shell: cmd
       run: |
-        :: 1. 【核心修复】将源码物理平移到 D:\v8js 根目录，彻底粉碎组件的安全限制
+        :: 1. 将源码物理平移到 D:\v8js 根目录
         if exist D:\v8js rd /s /q D:\v8js
         mkdir D:\v8js
         xcopy /E /I /Y "v8js-src" "D:\v8js"
         
-        :: 2. 净化 PATH 环境并切入工作目录
-        set "PATH=D:\depot_tools;D:\php-sdk\bin;%PATH%"
+        :: 2. 【精准修复 1】将 Chocolatey 默认安装 winflexbison3 的物理路径强行注入当前上下文的 PATH 最前端
+        set "PATH=C:\ProgramData\chocolatey\lib\winflexbison3\tools;D:\depot_tools;D:\php-sdk\bin;%PATH%"
+        
+        :: 3. 【精准修复 2】解决 PHP 构建脚本只认 bison.exe 而不认 win_bison.exe 的顽疾
+        if exist "C:\ProgramData\chocolatey\lib\winflexbison3\tools\win_bison.exe" (
+            if not exist "C:\ProgramData\chocolatey\lib\winflexbison3\tools\bison.exe" (
+                copy /Y "C:\ProgramData\chocolatey\lib\winflexbison3\tools\win_bison.exe" "C:\ProgramData\chocolatey\lib\winflexbison3\tools\bison.exe"
+            )
+        )
+        
         echo [DEBUG] 正在切入 v8js 物理工作目录...
         cd /d D:\v8js
         
-        :: 3. 锁定 PHP Devel Pack 物理路径，防止其内部脚本盲目探测
+        :: 4. 锁定 PHP Devel Pack 物理路径
         set "PHP_RM_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         set "PHP_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         
         echo [DEBUG] 开始执行 phpize.bat ...
-        :: 使用经过验证的强力重定向，确保不发生任何静默挂起
         echo. 2>&1 | cmd /c "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat"
         
         echo [DEBUG] phpize 结束，检查 configure.bat 是否生成...
@@ -170,7 +177,6 @@ jobs:
         )
         
         echo [DEBUG] 开始配置编译参数...
-        :: 此时已在百分之百完整的 D:\v8js 根目录，满足 "Must be run from the root of the extension source" 限制
         echo. 2>&1 | cmd /c configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
