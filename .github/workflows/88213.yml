@@ -137,16 +137,17 @@ jobs:
 
     - name: "拉取并编译 V8js 扩展"
       shell: cmd
-      env:
-        NUMBER_OF_PROCESSORS: 1
+      # 【精准修复 1】彻底移除原先的 NUMBER_OF_PROCESSORS: 1，防止单核强制调度导致多线程 Git 收尾时死锁崩溃
       run: |
-        :: 1. 【精准修复】净化 PATH，绝不把 PHP 目录塞进全局 PATH，防止污染和腰斩 Git 进程
         set "PATH=D:\depot_tools;D:\php-sdk\bin;%PATH%"
         
-        echo [DEBUG] 正在清洗并克隆 v8js 源码...
+        echo [DEBUG] 开始清理旧目录...
         cd /d D:\
         if exist v8js rd /s /q v8js
-        git clone --depth=1 --progress ${{ env.V8JS_EXT_URL }} v8js
+        
+        echo [DEBUG] 开始克隆 v8js 源码 (采用单线程纯净模式防卡死)...
+        :: 【精准修复 2】在命令中加入 --config pack.threads=1，从软件层面将 Git 线程锁定为 1，优雅收尾不卡死
+        git clone --depth=1 --progress --config pack.threads=1 ${{ env.V8JS_EXT_URL }} v8js
         
         echo [DEBUG] 克隆完成，正在进入目录...
         cd /d D:\v8js
@@ -155,20 +156,20 @@ jobs:
         set "PHP_BUILD=D:\php-sdk\php-dev-pack\php-devel-pack"
         
         echo [DEBUG] 开始执行 phpize.bat...
-        :: 【精准修复 2】改用 powershell 独立沙箱进程拉起 phpize.bat，击穿任何导致 cmd 中断的底层 Bug
-        powershell -Command "Set-Location 'D:\v8js'; $env:PHP_RM_BUILD='D:\php-sdk\php-dev-pack\php-devel-pack'; $env:PHP_BUILD='D:\php-sdk\php-dev-pack\php-devel-pack'; echo '' | & 'D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat'"
+        echo. 2>&1 | cmd /c "D:\php-sdk\php-dev-pack\php-devel-pack\phpize.bat"
         
-        echo [DEBUG] phpize 结束，正在切回主进程检查 configure.bat 是否生成...
+        echo [DEBUG] phpize 结束，检查 configure.bat 是否生成...
         if not exist configure.bat (
             echo [ERROR] configure.bat 生成失败！
             exit /b 1
         )
         
         echo [DEBUG] 开始配置编译参数...
-        echo. | cmd /c configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
+        echo. 2>&1 | cmd /c configure.bat --with-v8js="${{ env.V8_DEPS_DIR }}" --with-php-build="${{ env.PHP_DEV_PACK_DIR }}" --enable-nmake-interactive=no
         
         echo [DEBUG] 配置完成，开始 nmake 编译...
-        echo. | nmake /NOLOGO
+        echo. 2>&1 | nmake /NOLOGO
         
         echo [DEBUG] 编译步骤结束。
+
 
